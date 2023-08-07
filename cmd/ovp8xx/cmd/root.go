@@ -6,6 +6,7 @@ package cmd
 import (
 	"os"
 
+	"github.com/graugans/go-ovp8xx/pkg/ovp8xx"
 	"github.com/spf13/cobra"
 )
 
@@ -42,4 +43,5 @@ func init() {
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
+	rootCmd.PersistentFlags().String("ip", ovp8xx.GetEnv("OVP8XX_IP", "192.168.0.69"), "The IP address or hostname of the OVP8XX. If not provided the default will be taken from the environment variable OVP8XX_IP")
 }

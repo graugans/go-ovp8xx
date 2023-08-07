@@ -14,11 +14,18 @@ func getCommand(cmd *cobra.Command, args []string) error {
 
 	pointers, err := cmd.Flags().GetStringSlice("pointer")
 	if err != nil {
-		panic(err)
+		return err
 	}
-	o3r := ovp8xx.NewClient()
-	query := pointers
-	result, err := o3r.Get(query)
+	host, err := rootCmd.PersistentFlags().GetString("ip")
+	if err != nil {
+		return err
+	}
+
+	o3r := ovp8xx.NewClient(
+		ovp8xx.WithHost(host),
+	)
+
+	result, err := o3r.Get(pointers)
 	if err != nil {
 		return err
 	} else {

@@ -10,7 +10,7 @@ type (
 func NewClient(opts ...ClientOption) *Client {
 	// Initialise with default values
 	client := &Client{
-		host: getEnv("OVP8XX_IP", "192.168.0.69"),
+		host: GetEnv("OVP8XX_IP", "192.168.0.69"),
 	}
 
 	// Apply options
