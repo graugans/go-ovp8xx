@@ -23,6 +23,8 @@ jobs:
 
       - name: Build
         run: go build -v ./...
+
+      - name: Build the CLI
         run: go build cmd/ovp8xx/ovp8xx.go
 
       - name: Test
