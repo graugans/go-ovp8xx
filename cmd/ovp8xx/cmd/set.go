@@ -4,8 +4,10 @@ Copyright © 2023 Christian Ege <ch@ege.io>
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 
+	"github.com/graugans/go-ovp8xx/pkg/ovp8xx"
 	"github.com/spf13/cobra"
 )
 
@@ -13,27 +15,39 @@ import (
 var setCmd = &cobra.Command{
 	Use:   "set",
 	Short: "Change the configuration of the device",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
+	Long: `This will send a JSON configuration to the device
+	
+NOTE: Sending smaller bites of JSON will reduce the chewing costs on the device.
+Reduce your JSON to the max, only send the bare minimum required to achieve your goals
+Not just copy paste the output of a get all ("") with a small change into a set.
+Better extract the object you want to change and only send this`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if len(args) != 1 {
+			return fmt.Errorf("invalid number of arguments provided to 'set'")
+		}
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("set called")
+		if !json.Valid([]byte(args[0])) {
+			return fmt.Errorf("the import argument is not valid JSON")
+		}
+
+		host, err := rootCmd.PersistentFlags().GetString("ip")
+		if err != nil {
+			return err
+		}
+
+		o3r := ovp8xx.NewClient(
+			ovp8xx.WithHost(host),
+		)
+
+		return o3r.Set(
+			*ovp8xx.NewConfig(
+				ovp8xx.WitJSONString(args[0]),
+			),
+		)
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(setCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// setCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// setCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }

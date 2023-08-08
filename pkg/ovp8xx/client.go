@@ -1,9 +1,14 @@
 package ovp8xx
 
+import (
+	"fmt"
+)
+
 type (
 	ClientOption func(c *Client)
 	Client       struct {
 		host string
+		url  string
 	}
 )
 
@@ -17,7 +22,7 @@ func NewClient(opts ...ClientOption) *Client {
 	for _, opt := range opts {
 		opt(client)
 	}
-
+	client.url = fmt.Sprintf("http://%s/api/rpc/v1/com.ifm.efector/", client.host)
 	return client
 }
 
