@@ -69,3 +69,15 @@ func (device *Client) SaveInit(pointers []string) error {
 	}{Pointers: pointers}
 	return client.Call("saveInit", arg, nil)
 }
+
+func (device *Client) FactoryReset(keepNetworkSettings bool) error {
+	client, _ := xmlrpc.NewClient(device.url)
+	defer client.Close()
+
+	arg := &struct {
+		KeepNetworkSettings bool
+	}{
+		KeepNetworkSettings: keepNetworkSettings,
+	}
+	return client.Call("factoryReset", arg, nil)
+}
