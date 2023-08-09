@@ -5,7 +5,10 @@ import (
 )
 
 func (device *Client) Get(pointers []string) (Config, error) {
-	client, _ := xmlrpc.NewClient(device.url)
+	client, err := xmlrpc.NewClient(device.url)
+	if err != nil {
+		return *NewConfig(), err
+	}
 	defer client.Close()
 
 	result := &struct {
@@ -16,8 +19,7 @@ func (device *Client) Get(pointers []string) (Config, error) {
 		Pointers []string
 	}{Pointers: pointers}
 
-	err := client.Call("get", arg, result)
-	if err != nil {
+	if err = client.Call("get", arg, result); err != nil {
 		return *NewConfig(), err
 	}
 
@@ -25,7 +27,10 @@ func (device *Client) Get(pointers []string) (Config, error) {
 }
 
 func (device *Client) Set(conf Config) error {
-	client, _ := xmlrpc.NewClient(device.url)
+	client, err := xmlrpc.NewClient(device.url)
+	if err != nil {
+		return err
+	}
 	defer client.Close()
 
 	arg := &struct {
@@ -40,8 +45,10 @@ func (device *Client) Set(conf Config) error {
 }
 
 func (device *Client) GetInit() (Config, error) {
-	var err error = nil
-	client, _ := xmlrpc.NewClient(device.url)
+	client, err := xmlrpc.NewClient(device.url)
+	if err != nil {
+		return *NewConfig(), err
+	}
 	defer client.Close()
 
 	result := &struct {
@@ -56,7 +63,10 @@ func (device *Client) GetInit() (Config, error) {
 }
 
 func (device *Client) SaveInit(pointers []string) error {
-	client, _ := xmlrpc.NewClient(device.url)
+	client, err := xmlrpc.NewClient(device.url)
+	if err != nil {
+		return err
+	}
 	defer client.Close()
 
 	// In case no pointer is given save the complete configuration
@@ -71,7 +81,10 @@ func (device *Client) SaveInit(pointers []string) error {
 }
 
 func (device *Client) FactoryReset(keepNetworkSettings bool) error {
-	client, _ := xmlrpc.NewClient(device.url)
+	client, err := xmlrpc.NewClient(device.url)
+	if err != nil {
+		return err
+	}
 	defer client.Close()
 
 	arg := &struct {
