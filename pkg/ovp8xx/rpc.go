@@ -63,6 +63,10 @@ func (device *Client) SaveInit(pointers []string) error {
 		Pointers []string
 	}{Pointers: pointers}
 
+	// In case no pointer is given save the complete configuration
+	if len(arg.Pointers) == 0 {
+		arg = nil
+	}
 	err := client.Call("saveInit", arg, nil)
 	if err != nil {
 		return err
