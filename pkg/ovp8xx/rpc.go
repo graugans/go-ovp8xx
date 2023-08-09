@@ -59,18 +59,13 @@ func (device *Client) SaveInit(pointers []string) error {
 	client, _ := xmlrpc.NewClient(device.url)
 	defer client.Close()
 
+	// In case no pointer is given save the complete configuration
+	if len(pointers) == 0 {
+		return client.Call("saveInit", nil, nil)
+	}
+
 	arg := &struct {
 		Pointers []string
 	}{Pointers: pointers}
-
-	// In case no pointer is given save the complete configuration
-	if len(arg.Pointers) == 0 {
-		arg = nil
-	}
-	err := client.Call("saveInit", arg, nil)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return client.Call("saveInit", arg, nil)
 }
