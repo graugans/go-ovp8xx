@@ -38,3 +38,19 @@ func (device *Client) Set(conf Config) error {
 
 	return nil
 }
+
+func (device *Client) GetInit() (Config, error) {
+	var err error = nil
+	client, _ := xmlrpc.NewClient(device.url)
+	defer client.Close()
+
+	result := &struct {
+		JSON string
+	}{}
+
+	if err = client.Call("getInit", nil, result); err != nil {
+		return *NewConfig(), err
+	}
+
+	return *NewConfig(WitJSONString(result.JSON)), nil
+}
