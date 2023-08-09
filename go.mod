@@ -4,6 +4,7 @@ go 1.20
 
 require (
 	alexejk.io/go-xmlrpc v0.4.0
+	github.com/carlmjohnson/versioninfo v0.22.5
 	github.com/spf13/cobra v1.7.0
 )
 
