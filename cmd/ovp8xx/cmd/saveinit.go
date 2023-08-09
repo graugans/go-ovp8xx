@@ -31,11 +31,7 @@ In case no JSON Pointer is provided the complete configuration is saved`,
 		o3r := ovp8xx.NewClient(
 			ovp8xx.WithHost(host),
 		)
-
-		if err := o3r.SaveInit(pointers); err != nil {
-			return err
-		}
-		return nil
+		return o3r.SaveInit(pointers)
 	},
 }
 
