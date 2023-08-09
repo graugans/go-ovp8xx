@@ -54,3 +54,19 @@ func (device *Client) GetInit() (Config, error) {
 
 	return *NewConfig(WitJSONString(result.JSON)), nil
 }
+
+func (device *Client) SaveInit(pointers []string) error {
+	client, _ := xmlrpc.NewClient(device.url)
+	defer client.Close()
+
+	arg := &struct {
+		Pointers []string
+	}{Pointers: pointers}
+
+	err := client.Call("saveInit", arg, nil)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
