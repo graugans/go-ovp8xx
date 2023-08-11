@@ -111,3 +111,13 @@ func (device *Client) GetSchema() (string, error) {
 	}
 	return result.JSON, nil
 }
+
+func (device *Client) Reboot() error {
+	client, err := xmlrpc.NewClient(device.url)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	return client.Call("reboot", nil, nil)
+}
