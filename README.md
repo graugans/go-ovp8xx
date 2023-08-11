@@ -14,7 +14,7 @@ This project is still a work in progress and will suffer from breaking API chang
 
 ### Pre Build Binaries
 
-The recommended and easiest way is to download the pre-build binary from the [GitHub Release page](/releases).
+The recommended and easiest way is to download the pre-build binary from the [GitHub Release page](https://github.com/graugans/go-ovp8xx/releases).
 
 
 ### Go get
