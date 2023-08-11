@@ -15,3 +15,18 @@ repos:
       - id: golangci-lint
       - id: go-unit-tests
       # - id: validate-toml
+  - repo: local
+    hooks:
+      - id: shfmt
+        name: Format shell scripts
+        entry: shfmt -w -i 4
+        language: system
+        types: [shell]
+        require_serial: true
+
+      - id: shellcheck
+        name: Check shell scripts
+        entry: shellcheck
+        language: system
+        types: [shell]
+        require_serial: true

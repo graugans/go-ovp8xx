@@ -22,7 +22,7 @@ If no argument is provided the "set" command reads input data from stdin.
 
 The input data is validated to contain a proper JSON string.
 There is only one JSON string allowed as an input
-	
+
 NOTE: Sending smaller bites of JSON will reduce the chewing costs on the device.
 Reduce your JSON to the max, only send the bare minimum required to achieve your goals
 Not just copy paste the output of a get all ("") with a small change into a set.
