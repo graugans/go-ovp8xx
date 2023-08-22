@@ -10,6 +10,10 @@ type (
 		host string
 		url  string
 	}
+	DiagnosisClient struct {
+		host string
+		url  string
+	}
 )
 
 func NewClient(opts ...ClientOption) *Client {
@@ -30,4 +34,11 @@ func WithHost(host string) ClientOption {
 	return func(c *Client) {
 		c.host = host
 	}
+}
+
+func (device *Client) GetDiagnosticClient() *DiagnosisClient {
+	client := &DiagnosisClient{}
+	client.host = device.host
+	client.url = fmt.Sprintf("http://%s/api/rpc/v1/com.ifm.diagnostic/", client.host)
+	return client
 }

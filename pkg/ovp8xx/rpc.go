@@ -121,3 +121,43 @@ func (device *Client) Reboot() error {
 
 	return client.Call("reboot", nil, nil)
 }
+
+func (device *DiagnosisClient) GetFiltered(conf Config) (Config, error) {
+	client, err := xmlrpc.NewClient(device.url)
+	if err != nil {
+		return *NewConfig(), err
+	}
+	defer client.Close()
+
+	arg := &struct {
+		Data string
+	}{Data: conf.String()}
+
+	result := &struct {
+		JSON string
+	}{}
+
+	if err = client.Call("getFiltered", arg, result); err != nil {
+		return *NewConfig(), err
+	}
+
+	return *NewConfig(WitJSONString(result.JSON)), nil
+}
+
+func (device *DiagnosisClient) GetFilterSchema() (Config, error) {
+	client, err := xmlrpc.NewClient(device.url)
+	if err != nil {
+		return *NewConfig(), err
+	}
+	defer client.Close()
+
+	result := &struct {
+		JSON string
+	}{}
+
+	if err = client.Call("getFilterSchema", nil, result); err != nil {
+		return *NewConfig(), err
+	}
+
+	return *NewConfig(WitJSONString(result.JSON)), nil
+}
