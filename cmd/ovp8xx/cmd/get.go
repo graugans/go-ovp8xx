@@ -4,32 +4,27 @@ Copyright © 2023 Christian Ege <ch@ege.io>
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/graugans/go-ovp8xx/pkg/ovp8xx"
 	"github.com/spf13/cobra"
 )
 
 func getCommand(cmd *cobra.Command, args []string) error {
-
-	pointers, err := cmd.Flags().GetStringSlice("pointer")
-	if err != nil {
-		return err
-	}
-	host, err := rootCmd.PersistentFlags().GetString("ip")
+	var result ovp8xx.Config
+	var err error
+	helper, err := NewHelper(cmd)
 	if err != nil {
 		return err
 	}
 
 	o3r := ovp8xx.NewClient(
-		ovp8xx.WithHost(host),
+		ovp8xx.WithHost(helper.hostname()),
 	)
 
-	result, err := o3r.Get(pointers)
-	if err != nil {
+	if result, err = o3r.Get(helper.jsonPointers()); err != nil {
 		return err
-	} else {
-		fmt.Printf("%s\n", result)
+	}
+	if err := helper.printJSONResult(result.String()); err != nil {
+		return err
 	}
 	return nil
 }
@@ -70,4 +65,5 @@ NOTE: This command only modifies temporary data, any changes will be lost after 
 func init() {
 	rootCmd.AddCommand(getCmd)
 	getCmd.Flags().StringSliceP("pointer", "p", []string{""}, "A JSON pointer to be queried")
+	getCmd.Flags().Bool("pretty", false, "Pretty print the JSON received from the device")
 }

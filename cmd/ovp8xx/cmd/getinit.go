@@ -4,28 +4,26 @@ Copyright © 2023 Christian Ege <ch@ege.io>
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/graugans/go-ovp8xx/pkg/ovp8xx"
 	"github.com/spf13/cobra"
 )
 
 func getInitCommand(cmd *cobra.Command, args []string) error {
-
-	host, err := rootCmd.PersistentFlags().GetString("ip")
+	var result ovp8xx.Config
+	var err error
+	helper, err := NewHelper(cmd)
 	if err != nil {
 		return err
 	}
 
 	o3r := ovp8xx.NewClient(
-		ovp8xx.WithHost(host),
+		ovp8xx.WithHost(helper.hostname()),
 	)
 
-	if result, err := o3r.GetInit(); err != nil {
+	if result, err = o3r.GetInit(); err != nil {
 		return err
-	} else {
-		fmt.Printf("%s\n", result)
 	}
+	helper.printJSONResult(result.String())
 	return nil
 }
 
@@ -42,4 +40,5 @@ longer useable when the expectation from the safed configuration is no longer me
 
 func init() {
 	rootCmd.AddCommand(getInitCmd)
+	getInitCmd.Flags().Bool("pretty", false, "Pretty print the JSON received from the device")
 }

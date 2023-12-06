@@ -4,32 +4,27 @@ Copyright © 2023 Christian Ege <ch@ege.io>
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/graugans/go-ovp8xx/pkg/ovp8xx"
 	"github.com/spf13/cobra"
 )
 
 func getSchemaCommand(cmd *cobra.Command, args []string) error {
-
-	pointers, err := cmd.Flags().GetStringSlice("pointer")
+	var result string
+	var err error
+	helper, err := NewHelper(cmd)
 	if err != nil {
 		return err
 	}
-
-	host, err := rootCmd.PersistentFlags().GetString("ip")
-	if err != nil {
-		return err
-	}
-
 	o3r := ovp8xx.NewClient(
-		ovp8xx.WithHost(host),
+		ovp8xx.WithHost(helper.hostname()),
 	)
 
-	if result, err := o3r.GetSchema(pointers); err != nil {
+	if result, err = o3r.GetSchema(helper.jsonPointers()); err != nil {
 		return err
-	} else {
-		fmt.Printf("%s\n", result)
+	}
+
+	if err := helper.printJSONResult(result); err != nil {
+		return err
 	}
 	return nil
 }
@@ -89,4 +84,5 @@ When no query is provided the complete schema is returend.
 func init() {
 	rootCmd.AddCommand(getSchemaCmd)
 	getSchemaCmd.Flags().StringSliceP("pointer", "p", []string{""}, "A JSON pointer to be queried. This can be used multiple times")
+	getSchemaCmd.Flags().Bool("pretty", false, "Pretty print the JSON received from the device")
 }
