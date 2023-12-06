@@ -23,7 +23,9 @@ func getInitCommand(cmd *cobra.Command, args []string) error {
 	if result, err = o3r.GetInit(); err != nil {
 		return err
 	}
-	helper.printJSONResult(result.String())
+	if err = helper.printJSONResult(result.String()); err != nil {
+		return err
+	}
 	return nil
 }
 
