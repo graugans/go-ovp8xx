@@ -95,7 +95,7 @@ func (device *Client) FactoryReset(keepNetworkSettings bool) error {
 	return client.Call("factoryReset", arg, nil)
 }
 
-func (device *Client) GetSchema() (string, error) {
+func (device *Client) GetSchema(pointers []string) (string, error) {
 	client, err := xmlrpc.NewClient(device.url)
 	if err != nil {
 		return "", err
@@ -105,8 +105,10 @@ func (device *Client) GetSchema() (string, error) {
 	result := &struct {
 		JSON string
 	}{}
-
-	if err := client.Call("getSchema", nil, result); err != nil {
+	arg := &struct {
+		Pointers []string
+	}{Pointers: pointers}
+	if err := client.Call("getSchema", arg, result); err != nil {
 		return "", err
 	}
 	return result.JSON, nil
