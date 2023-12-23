@@ -59,7 +59,7 @@ func TestChunkParse(t *testing.T) {
 	)
 	assert.Equal(t, chunk.RADIAL_DISTANCE_NOISE, c.Type(), "Type missmatch detected")
 	assert.Equal(t,
-		uint32(0x30),
+		0x30,
 		c.Size(),
 		"Size missmatch detected",
 	)

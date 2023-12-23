@@ -89,8 +89,8 @@ func (c *ChunkData) Type() ChunkType {
 	return c.chunkType
 }
 
-func (c *ChunkData) Size() uint32 {
-	return c.chunkSize
+func (c *ChunkData) Size() int {
+	return int(c.chunkSize)
 }
 
 func (c *ChunkData) FrameCount() uint32 {
