@@ -1,8 +1,12 @@
 package pcic_test
 
 import (
+	"bufio"
+	"compress/bzip2"
 	"embed"
+	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"testing"
 
@@ -76,7 +80,23 @@ func TestReceiveWithChunk(t *testing.T) {
 }
 
 func TestWithRealData(t *testing.T) {
-	_, err := tfs.ReadFile("testdata/pcic-test-data.blob.bz2")
+	file, err := tfs.Open("testdata/pcic-test-data.blob.bz2")
 	assert.NoError(t, err, "No error expected while reading the input")
+	defer file.Close()
+	buf := bufio.NewReader(file)
+	cr := bzip2.NewReader(buf)
+	p := pcic.PCIC{}
+	for {
+		f, err := p.Receive(cr)
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		assert.NoError(t, err, "No error expected while reading the compressed input")
+		fmt.Print("Chunks: [ ")
+		for _, c := range f.Chunks {
+			fmt.Printf("%d, ", c.Type())
+		}
+		fmt.Println("]")
+	}
 
 }
