@@ -1,6 +1,7 @@
 package pcic_test
 
 import (
+	"embed"
 	"fmt"
 	"strings"
 	"testing"
@@ -11,6 +12,9 @@ import (
 )
 
 const miniMalContentLength int = 14
+
+//go:embed testdata/*.bz2
+var tfs embed.FS
 
 func TestMinimalReceive(t *testing.T) {
 	r := strings.NewReader("Hello, Reader!")
@@ -68,5 +72,11 @@ func TestReceiveWithChunk(t *testing.T) {
 	r = strings.NewReader(buffer)
 	_, err = p.Receive(r)
 	assert.Error(t, err, "We expect an error while receiving malformed data")
+
+}
+
+func TestWithRealData(t *testing.T) {
+	_, err := tfs.ReadFile("testdata/pcic-test-data.blob.bz2")
+	assert.NoError(t, err, "No error expected while reading the input")
 
 }
