@@ -13,7 +13,7 @@ func TestChunkType(t *testing.T) {
 	assert.Equal(t,
 		chunk.RADIAL_DISTANCE_NOISE,
 		c.Type(),
-		"There is a chunk type missmatch detected",
+		"There is a chunk type mismatch detected",
 	)
 }
 
@@ -30,7 +30,7 @@ func TestChunkParse(t *testing.T) {
 			0x30, 0x00, 0x00, 0x00, /* HEADER_SIZE */
 			0x02, 0x00, 0x00, 0x00, /* HEADER_VERSION */
 			0x00, 0x00, 0x00, 0x00, /* IMAGE_WIDTH */
-			0x00, 0x00, 0x00, 0x00, /* IMAGE_HEIGTH */
+			0x00, 0x00, 0x00, 0x00, /* IMAGE_HEIGHT */
 			0x00, 0x00, 0x00, 0x00, /* DATA_FORMAT */
 			0x00, 0x01, 0x00, 0x00, /* TIME_STAMP */
 			0x00, 0x01, 0x00, 0x00, /* FRAME_COUNT */
@@ -47,7 +47,7 @@ func TestChunkParse(t *testing.T) {
 			0x30, 0x00, 0x00, 0x00, /* HEADER_SIZE */
 			0x02, 0x00, 0x00, 0x00, /* HEADER_VERSION */
 			0x00, 0x00, 0x00, 0x00, /* IMAGE_WIDTH */
-			0x00, 0x00, 0x00, 0x00, /* IMAGE_HEIGTH */
+			0x00, 0x00, 0x00, 0x00, /* IMAGE_HEIGHT */
 			0x00, 0x00, 0x00, 0x00, /* DATA_FORMAT */
 			0x00, 0x01, 0x00, 0x00, /* TIME_STAMP */
 			0x00, 0x01, 0x00, 0x00, /* FRAME_COUNT */
@@ -57,7 +57,11 @@ func TestChunkParse(t *testing.T) {
 		}),
 		"A successful parse expected",
 	)
-	assert.Equal(t, chunk.RADIAL_DISTANCE_NOISE, c.Type(), "Type missmatch detected")
+	assert.Equal(t,
+		chunk.RADIAL_DISTANCE_NOISE,
+		c.Type(),
+		"Type mismatch detected",
+	)
 	assert.Equal(t,
 		0x30,
 		c.Size(),
@@ -70,7 +74,7 @@ func TestChunkParse(t *testing.T) {
 			0x30, 0x00, 0x00, 0x00, /* HEADER_SIZE */
 			0x02, 0x00, 0x00, 0x00, /* HEADER_VERSION */
 			0x01, 0x00, 0x00, 0x00, /* IMAGE_WIDTH */
-			0x01, 0x00, 0x00, 0x00, /* IMAGE_HEIGTH */
+			0x01, 0x00, 0x00, 0x00, /* IMAGE_HEIGHT */
 			0x00, 0x00, 0x00, 0x00, /* DATA_FORMAT */
 			0x00, 0x01, 0x00, 0x00, /* TIME_STAMP */
 			0x00, 0x01, 0x00, 0x00, /* FRAME_COUNT */
@@ -87,7 +91,7 @@ func TestChunkParse(t *testing.T) {
 			0x30, 0x00, 0x00, 0x00, /* HEADER_SIZE */
 			0x02, 0x00, 0x00, 0x00, /* HEADER_VERSION */
 			0x00, 0x00, 0x00, 0x00, /* IMAGE_WIDTH */
-			0x00, 0x00, 0x00, 0x00, /* IMAGE_HEIGTH */
+			0x00, 0x00, 0x00, 0x00, /* IMAGE_HEIGHT */
 			0x00, 0x01, 0x00, 0x00, /* DATA_FORMAT */
 			0x00, 0x01, 0x00, 0x00, /* TIME_STAMP */
 			0x00, 0x01, 0x00, 0x00, /* FRAME_COUNT */
@@ -95,7 +99,7 @@ func TestChunkParse(t *testing.T) {
 			0x00, 0x01, 0x00, 0x00, /* TIME_STAMP_SEC */
 			0x00, 0x01, 0x00, 0x00, /* TIME_STAMP_NSEC */
 		}),
-		"A error due to an invalid pixelformat expected",
+		"A error due to an invalid data format expected",
 	)
 
 	assert.NoError(t,
@@ -105,7 +109,7 @@ func TestChunkParse(t *testing.T) {
 			0x30, 0x00, 0x00, 0x00, /* HEADER_SIZE */
 			0x02, 0x00, 0x00, 0x00, /* HEADER_VERSION */
 			0x00, 0x00, 0x00, 0x00, /* IMAGE_WIDTH */
-			0x00, 0x00, 0x00, 0x00, /* IMAGE_HEIGTH */
+			0x00, 0x00, 0x00, 0x00, /* IMAGE_HEIGHT */
 			0x00, 0x00, 0x00, 0x00, /* DATA_FORMAT */
 			0x00, 0x01, 0x00, 0x00, /* TIME_STAMP */
 			0x00, 0x01, 0x00, 0x00, /* FRAME_COUNT */
@@ -115,8 +119,12 @@ func TestChunkParse(t *testing.T) {
 		}),
 		"A successful parse expected",
 	)
-	assert.Equal(t, uint32(0x100), c.FrameCount(), "A framecount missmatch occurd")
-	assert.Equal(t, uint32(0x00), c.Status(), "A status code missmatch occurd")
+	assert.Equal(t,
+		uint32(0x100),
+		c.FrameCount(),
+		"A frame count mismatch occurred",
+	)
+	assert.Equal(t, uint32(0x00), c.Status(), "A status code mismatch occurred")
 	assert.NoError(t,
 		c.Parse([]byte{
 			0x69, 0x00, 0x00, 0x00, /* CHUNK_TYPE */
@@ -124,7 +132,7 @@ func TestChunkParse(t *testing.T) {
 			0x30, 0x00, 0x00, 0x00, /* HEADER_SIZE */
 			0x02, 0x00, 0x00, 0x00, /* HEADER_VERSION */
 			0x00, 0x00, 0x00, 0x00, /* IMAGE_WIDTH */
-			0x00, 0x00, 0x00, 0x00, /* IMAGE_HEIGTH */
+			0x00, 0x00, 0x00, 0x00, /* IMAGE_HEIGHT */
 			0x00, 0x00, 0x00, 0x00, /* DATA_FORMAT */
 			0x00, 0x00, 0x00, 0x00, /* TIME_STAMP */
 			0x00, 0x00, 0x00, 0x00, /* FRAME_COUNT */
@@ -137,12 +145,12 @@ func TestChunkParse(t *testing.T) {
 	assert.NotEqual(t,
 		time.Unix(0, 0),
 		c.TimeStamp(),
-		"A timestamp missmatch expected",
+		"A timestamp mismatch expected",
 	)
 	assert.Equal(t,
 		time.Unix(int64(0x100), int64(0x101)),
 		c.TimeStamp(),
-		"A timestamp missmatch occurd",
+		"A timestamp mismatch occur",
 	)
 	assert.NoError(t,
 		c.Parse([]byte{
@@ -151,7 +159,7 @@ func TestChunkParse(t *testing.T) {
 			0x30, 0x00, 0x00, 0x00, /* HEADER_SIZE */
 			0x02, 0x00, 0x00, 0x00, /* HEADER_VERSION */
 			0x04, 0x00, 0x00, 0x00, /* IMAGE_WIDTH */
-			0x01, 0x00, 0x00, 0x00, /* IMAGE_HEIGTH */
+			0x01, 0x00, 0x00, 0x00, /* IMAGE_HEIGHT */
 			0x00, 0x00, 0x00, 0x00, /* DATA_FORMAT */
 			0x00, 0x00, 0x00, 0x00, /* TIME_STAMP */
 			0x00, 0x00, 0x00, 0x00, /* FRAME_COUNT */
@@ -166,11 +174,11 @@ func TestChunkParse(t *testing.T) {
 	assert.Equal(t,
 		4,
 		len(c.Bytes()),
-		"A data size missmatch occured",
+		"A data size mismatch occurred",
 	)
 	assert.Equal(t,
 		[]byte{0xFF, 0xFF, 0xFF, 0xBB},
 		c.Bytes(),
-		"A data size missmatch occured",
+		"A data size mismatch occurred",
 	)
 }
