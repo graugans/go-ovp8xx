@@ -70,3 +70,12 @@ The result depends on your specific device:
   }
 }
 ```
+
+## Testing
+
+Please ensure you have the Git Large File Storage extension installed. Some of the tests require blobs which are handled as Large File Storage files. In case the files are not populated as expected this may help:
+
+```sh
+git lfs fetch --all
+git lfs pull
+```
