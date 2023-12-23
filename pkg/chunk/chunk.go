@@ -29,6 +29,10 @@ const (
 	FORMAT_MAX DataFormat = 9 /* The maximum known data type*/
 )
 
+var (
+	byteSizeLUT [FORMAT_MAX]uint32 = [FORMAT_MAX]uint32{1, 1, 2, 2, 4, 4, 4, 8, 8}
+)
+
 type Chunk interface {
 	Parse(data []byte) error
 	Type() ChunkType
@@ -199,9 +203,13 @@ func (c *ChunkData) Parse(data []byte) error {
 	// So be careful when manipulating data
 	c.data = data[offsetOfData : offsetOfData+(c.chunkSize-c.headerSize)]
 
-	if (c.dataWidth * c.dataHeight) != uint32(len(c.data)) {
+	if (c.dataWidth * c.dataHeight * byteSizeLUT[c.dataFormat]) != uint32(len(c.data)) {
 		return fmt.Errorf(
-			"a size missmatch detected, width times height does not equal the data size",
+			"a size mismatch detected, width (%d) times height (%d) does not equal the data size (%d) format: %d",
+			c.dataWidth,
+			c.dataHeight,
+			len(c.data),
+			c.dataFormat,
 		)
 
 	}
