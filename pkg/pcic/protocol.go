@@ -39,7 +39,7 @@ var (
 	notificationTicket []byte = []byte{'0', '0', '1', '0'}
 )
 
-type Async interface {
+type MessageHandler interface {
 	Result(Frame)
 	Error(ErrorMessage)
 	Notification(NotificationMessage)
@@ -55,7 +55,7 @@ type ErrorMessage struct {
 	Message string
 }
 
-func (p *PCIC) Receive(reader io.Reader, handler Async) error {
+func (p *PCIC) Receive(reader io.Reader, handler MessageHandler) error {
 	header := make([]byte, headerSize)
 	n, err := io.ReadFull(reader, header)
 	if err != nil {
