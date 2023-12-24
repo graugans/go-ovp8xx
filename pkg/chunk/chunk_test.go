@@ -20,11 +20,11 @@ func TestChunkType(t *testing.T) {
 func TestChunkParse(t *testing.T) {
 	c := chunk.ChunkData{}
 	assert.Error(t,
-		c.Parse([]byte{}),
+		c.UnmarshalBinary([]byte{}),
 		"An error is expected when sending an empty byte slice",
 	)
 	assert.NoError(t,
-		c.Parse([]byte{
+		c.UnmarshalBinary([]byte{
 			0x69, 0x00, 0x00, 0x00, /* CHUNK_TYPE */
 			0x30, 0x00, 0x00, 0x00, /* CHUNK_SIZE */
 			0x30, 0x00, 0x00, 0x00, /* HEADER_SIZE */
@@ -41,7 +41,7 @@ func TestChunkParse(t *testing.T) {
 		"A successful parse expected",
 	)
 	assert.NoError(t,
-		c.Parse([]byte{
+		c.UnmarshalBinary([]byte{
 			0x69, 0x00, 0x00, 0x00, /* CHUNK_TYPE */
 			0x30, 0x00, 0x00, 0x00, /* CHUNK_SIZE */
 			0x30, 0x00, 0x00, 0x00, /* HEADER_SIZE */
@@ -65,10 +65,10 @@ func TestChunkParse(t *testing.T) {
 	assert.Equal(t,
 		0x30,
 		c.Size(),
-		"Size missmatch detected",
+		"Size mismatch detected",
 	)
 	assert.Error(t,
-		c.Parse([]byte{
+		c.UnmarshalBinary([]byte{
 			0x69, 0x00, 0x00, 0x00, /* CHUNK_TYPE */
 			0x30, 0x00, 0x00, 0x00, /* CHUNK_SIZE */
 			0x30, 0x00, 0x00, 0x00, /* HEADER_SIZE */
@@ -85,7 +85,7 @@ func TestChunkParse(t *testing.T) {
 		"A error due to invalid width and height expected",
 	)
 	assert.Error(t,
-		c.Parse([]byte{
+		c.UnmarshalBinary([]byte{
 			0x69, 0x00, 0x00, 0x00, /* CHUNK_TYPE */
 			0x30, 0x00, 0x00, 0x00, /* CHUNK_SIZE */
 			0x30, 0x00, 0x00, 0x00, /* HEADER_SIZE */
@@ -103,7 +103,7 @@ func TestChunkParse(t *testing.T) {
 	)
 
 	assert.NoError(t,
-		c.Parse([]byte{
+		c.UnmarshalBinary([]byte{
 			0x69, 0x00, 0x00, 0x00, /* CHUNK_TYPE */
 			0x30, 0x00, 0x00, 0x00, /* CHUNK_SIZE */
 			0x30, 0x00, 0x00, 0x00, /* HEADER_SIZE */
@@ -126,7 +126,7 @@ func TestChunkParse(t *testing.T) {
 	)
 	assert.Equal(t, uint32(0x00), c.Status(), "A status code mismatch occurred")
 	assert.NoError(t,
-		c.Parse([]byte{
+		c.UnmarshalBinary([]byte{
 			0x69, 0x00, 0x00, 0x00, /* CHUNK_TYPE */
 			0x30, 0x00, 0x00, 0x00, /* CHUNK_SIZE */
 			0x30, 0x00, 0x00, 0x00, /* HEADER_SIZE */
@@ -153,7 +153,7 @@ func TestChunkParse(t *testing.T) {
 		"A timestamp mismatch occur",
 	)
 	assert.NoError(t,
-		c.Parse([]byte{
+		c.UnmarshalBinary([]byte{
 			0x69, 0x00, 0x00, 0x00, /* CHUNK_TYPE */
 			0x34, 0x00, 0x00, 0x00, /* CHUNK_SIZE */
 			0x30, 0x00, 0x00, 0x00, /* HEADER_SIZE */

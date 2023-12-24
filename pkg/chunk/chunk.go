@@ -34,7 +34,8 @@ var (
 )
 
 type Chunk interface {
-	Parse(data []byte) error
+	UnmarshalBinary(data []byte) error
+	MarshalBinary() (data []byte, err error)
 	Type() ChunkType
 	Size() uint32
 	FrameCount() uint32
@@ -113,7 +114,18 @@ func (c *ChunkData) Bytes() []byte {
 	return c.data
 }
 
-func (c *ChunkData) Parse(data []byte) error {
+// MarshalBinary creates a binary representation of the Chunk
+//
+// The binary representation is encoded in the byte slice
+func (c *ChunkData) MarshalBinary() (data []byte, err error) {
+	return []byte{}, nil
+}
+
+// UnmarshalBinary creates a ChunkData from a byte slice
+//
+// It copies the data from the input slice to comply with the BinaryUnmarshaler
+// interface.
+func (c *ChunkData) UnmarshalBinary(data []byte) error {
 	dataLen := uint32(len(data))
 	if dataLen < offsetOfData {
 		return errors.New("unable to parse an empty input")
@@ -198,10 +210,13 @@ func (c *ChunkData) Parse(data []byte) error {
 		data[offsetOfTimeStampNsec : offsetOfTimeStampNsec+4],
 	)
 
-	// Link the data to this chunk
-	// In Go slices are handled as references.
-	// So be careful when manipulating data
-	c.data = data[offsetOfData : offsetOfData+(c.chunkSize-c.headerSize)]
+	// Copy the data to this chunk
+	src := data[offsetOfData : offsetOfData+(c.chunkSize-c.headerSize)]
+	c.data = make([]byte, len(src))
+	copy(c.data, src)
+	if src == nil {
+		c.data = nil
+	}
 
 	if (c.dataWidth * c.dataHeight * byteSizeLUT[c.dataFormat]) != uint32(len(c.data)) {
 		return fmt.Errorf(

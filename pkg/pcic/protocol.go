@@ -153,7 +153,7 @@ func asyncResultParser(data []byte) (Frame, error) {
 	offset := 0
 	for remainingBytes > 0 {
 		c := chunk.ChunkData{}
-		if err := c.Parse(content[offset:]); err != nil {
+		if err := c.UnmarshalBinary(content[offset:]); err != nil {
 			return frame, err
 		}
 		frame.Chunks = append(frame.Chunks, c)

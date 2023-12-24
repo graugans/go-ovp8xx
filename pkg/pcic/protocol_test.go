@@ -70,7 +70,7 @@ func TestReceiveWithChunk(t *testing.T) {
 		0xFF, 0xFF, 0xFF, 0xBB, /* DATA */
 	}
 	assert.NoError(t,
-		c.Parse(chunkData),
+		c.UnmarshalBinary(chunkData),
 		"A successful parse expected",
 	)
 	p := pcic.PCIC{}
