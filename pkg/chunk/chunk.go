@@ -44,21 +44,22 @@ type Chunk interface {
 	Bytes() []byte
 }
 
+// A ChunkData object contains all the information based on a PCIC chunk
 type ChunkData struct {
-	chunkType     ChunkType  /* The type of the Chunk, each chunk type requires a unique ID*/
-	chunkSize     uint32     /* The size of the complete chunk, including the header and the data */
-	headerSize    uint32     /* The Size of the chunk header after this amount of bytes the data section starts */
-	headerVersion uint32     /* The version of the header */
-	dataWidth     uint32     /* The width of the data */
-	dataHeight    uint32     /* The height of the data, for none image data this is set to 1*/
-	dataFormat    DataFormat /* The data format*/
-	timeStamp     uint32     /* The timestamp in micro seconds (deprecated) */
-	frameCount    uint32     /* A frame count */
-	statusCode    uint32     /* Conveys the status of the device default: 0 */
-	timestampSec  uint32     /* The timestamp seconds part */
-	timestampNSec uint32     /* The timestamp nano seconds part */
-	metadata      string     /* The JSON meta data is always {} for v2 chunks */
-	data          []byte     /**/
+	chunkType     ChunkType  // The type of the Chunk, each chunk type requires a unique ID
+	chunkSize     uint32     // The size of the complete chunk, including the header and the data
+	headerSize    uint32     // The Size of the chunk header after this amount of bytes the data section starts
+	headerVersion uint32     // The version of the header
+	dataWidth     uint32     // The width of the data
+	dataHeight    uint32     // The height of the data, for none image data this is set to 1
+	dataFormat    DataFormat // The data format
+	timeStamp     uint32     // The timestamp in micro seconds (deprecated)
+	frameCount    uint32     // A frame count
+	statusCode    uint32     // Conveys the status of the device default: 0
+	timestampSec  uint32     // The timestamp seconds part
+	timestampNSec uint32     // The timestamp nano seconds part
+	metadata      string     // The JSON meta data is always {} for v2 chunks
+	data          []byte     // The data the chunk describes
 }
 
 const (
