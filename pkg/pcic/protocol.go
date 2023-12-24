@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-
-	"github.com/graugans/go-ovp8xx/pkg/chunk"
 )
 
 type PCIC struct {
@@ -152,7 +150,7 @@ func asyncResultParser(data []byte) (Frame, error) {
 	remainingBytes := len(content)
 	offset := 0
 	for remainingBytes > 0 {
-		c := chunk.ChunkData{}
+		c := Chunk{}
 		if err := c.UnmarshalBinary(content[offset:]); err != nil {
 			return frame, err
 		}

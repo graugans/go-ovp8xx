@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/graugans/go-ovp8xx/pkg/chunk"
 	"github.com/graugans/go-ovp8xx/pkg/pcic"
 	"github.com/stretchr/testify/assert"
 )
@@ -53,7 +52,7 @@ func TestMinimalReceive(t *testing.T) {
 }
 
 func TestReceiveWithChunk(t *testing.T) {
-	c := chunk.ChunkData{}
+	c := pcic.Chunk{}
 	chunkData := []byte{
 		0x69, 0x00, 0x00, 0x00, /* CHUNK_TYPE */
 		0x34, 0x00, 0x00, 0x00, /* CHUNK_SIZE */
@@ -85,7 +84,7 @@ func TestReceiveWithChunk(t *testing.T) {
 	assert.NoError(t, err, "We expect no error while receiving data")
 
 	assert.Equal(t,
-		chunk.RADIAL_DISTANCE_NOISE,
+		pcic.RADIAL_DISTANCE_NOISE,
 		testHandler.frame.Chunks[0].Type(),
 	)
 

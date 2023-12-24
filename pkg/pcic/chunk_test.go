@@ -1,24 +1,24 @@
-package chunk_test
+package pcic_test
 
 import (
 	"testing"
 	"time"
 
-	"github.com/graugans/go-ovp8xx/pkg/chunk"
+	"github.com/graugans/go-ovp8xx/pkg/pcic"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestChunkType(t *testing.T) {
-	c := chunk.New(chunk.RADIAL_DISTANCE_NOISE)
+	c := pcic.NewChunk(pcic.WithChunkType(pcic.RADIAL_DISTANCE_NOISE))
 	assert.Equal(t,
-		chunk.RADIAL_DISTANCE_NOISE,
+		pcic.RADIAL_DISTANCE_NOISE,
 		c.Type(),
 		"There is a chunk type mismatch detected",
 	)
 }
 
-func TestChunkParse(t *testing.T) {
-	c := chunk.ChunkData{}
+func TestUnmarshalBinary(t *testing.T) {
+	c := pcic.Chunk{}
 	assert.Error(t,
 		c.UnmarshalBinary([]byte{}),
 		"An error is expected when sending an empty byte slice",
@@ -58,7 +58,7 @@ func TestChunkParse(t *testing.T) {
 		"A successful parse expected",
 	)
 	assert.Equal(t,
-		chunk.RADIAL_DISTANCE_NOISE,
+		pcic.RADIAL_DISTANCE_NOISE,
 		c.Type(),
 		"Type mismatch detected",
 	)
@@ -181,4 +181,8 @@ func TestChunkParse(t *testing.T) {
 		c.Bytes(),
 		"A data size mismatch occurred",
 	)
+}
+
+func TestRoundtrip(t *testing.T) {
+
 }

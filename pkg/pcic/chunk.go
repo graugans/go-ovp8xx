@@ -1,4 +1,4 @@
-package chunk
+package pcic
 
 import (
 	"encoding/binary"
@@ -7,8 +7,11 @@ import (
 	"time"
 )
 
-type ChunkType uint32
-type DataFormat uint32
+type (
+	ChunkType   uint32
+	DataFormat  uint32
+	ChunkOption func(c *Chunk)
+)
 
 // The known Chunk Types
 const (
@@ -33,19 +36,8 @@ var (
 	byteSizeLUT [FORMAT_MAX]uint32 = [FORMAT_MAX]uint32{1, 1, 2, 2, 4, 4, 4, 8, 8}
 )
 
-type Chunk interface {
-	UnmarshalBinary(data []byte) error
-	MarshalBinary() (data []byte, err error)
-	Type() ChunkType
-	Size() uint32
-	FrameCount() uint32
-	Status() uint32
-	TimeStamp() time.Time
-	Bytes() []byte
-}
-
-// A ChunkData object contains all the information based on a PCIC chunk
-type ChunkData struct {
+// A Chunk object contains all the information based on a PCIC chunk
+type Chunk struct {
 	chunkType     ChunkType  // The type of the Chunk, each chunk type requires a unique ID
 	chunkSize     uint32     // The size of the complete chunk, including the header and the data
 	headerSize    uint32     // The Size of the chunk header after this amount of bytes the data section starts
@@ -82,43 +74,52 @@ const (
 	MaxSupportedChunkHeaderVersion = 3
 )
 
-func New(cType ChunkType) *ChunkData {
-	chunk := &ChunkData{
-		chunkType: cType,
-		metadata:  "{}",
-		data:      []byte{},
+func NewChunk(options ...ChunkOption) *Chunk {
+	chunk := &Chunk{
+		metadata: "{}",
+		data:     []byte{},
+	}
+	// Apply options
+	for _, opt := range options {
+		opt(chunk)
 	}
 	return chunk
 }
 
-func (c *ChunkData) Type() ChunkType {
+func WithChunkType(cType ChunkType) ChunkOption {
+	return func(c *Chunk) {
+		c.chunkType = cType
+	}
+}
+
+func (c *Chunk) Type() ChunkType {
 	return c.chunkType
 }
 
-func (c *ChunkData) Size() int {
+func (c *Chunk) Size() int {
 	return int(c.chunkSize)
 }
 
-func (c *ChunkData) FrameCount() uint32 {
+func (c *Chunk) FrameCount() uint32 {
 	return c.frameCount
 }
 
-func (c *ChunkData) Status() uint32 {
+func (c *Chunk) Status() uint32 {
 	return c.statusCode
 }
 
-func (c *ChunkData) TimeStamp() time.Time {
+func (c *Chunk) TimeStamp() time.Time {
 	return time.Unix(int64(c.timestampSec), int64(c.timestampNSec))
 }
 
-func (c *ChunkData) Bytes() []byte {
+func (c *Chunk) Bytes() []byte {
 	return c.data
 }
 
 // MarshalBinary creates a binary representation of the Chunk
 //
 // The binary representation is encoded in the byte slice
-func (c *ChunkData) MarshalBinary() (data []byte, err error) {
+func (c *Chunk) MarshalBinary() (data []byte, err error) {
 	return []byte{}, nil
 }
 
@@ -126,7 +127,7 @@ func (c *ChunkData) MarshalBinary() (data []byte, err error) {
 //
 // It copies the data from the input slice to comply with the BinaryUnmarshaler
 // interface.
-func (c *ChunkData) UnmarshalBinary(data []byte) error {
+func (c *Chunk) UnmarshalBinary(data []byte) error {
 	dataLen := uint32(len(data))
 	if dataLen < offsetOfData {
 		return errors.New("unable to parse an empty input")
