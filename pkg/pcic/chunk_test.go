@@ -417,3 +417,31 @@ func TestFrameStatus(t *testing.T) {
 		"The status of the original and the clone do not match",
 	)
 }
+
+func TestChunkTimeStamp(t *testing.T) {
+	now := time.Now()
+	chunk := pcic.NewChunk()
+	chunk.SetTimestamp(now)
+	assert.Equal(
+		t,
+		now.UnixNano(),
+		chunk.TimeStamp().UnixNano(),
+		"No error expected when setting the time stamp",
+	)
+	clone := pcic.NewChunk()
+	data, err := chunk.MarshalBinary()
+	assert.NoError(t,
+		err,
+		"No error expected when creating a binary clone",
+	)
+	assert.NoError(t,
+		clone.UnmarshalBinary(data),
+		"No error expected when creating a clone from the bytes",
+	)
+	assert.Equal(
+		t,
+		chunk.TimeStamp(),
+		clone.TimeStamp(),
+		"The status of the original and the clone do not match",
+	)
+}

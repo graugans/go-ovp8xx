@@ -144,6 +144,13 @@ func (c *Chunk) TimeStamp() time.Time {
 	return time.Unix(int64(c.timestampSec), int64(c.timestampNSec))
 }
 
+func (c *Chunk) SetTimestamp(value time.Time) {
+	c.timestampSec = uint32(value.Unix())
+	seconds := time.Unix(int64(c.timestampSec), 0)
+	c.timestampNSec = uint32(value.UnixNano() - seconds.UnixNano())
+	fmt.Printf("Seconds: %d Nanoseconds: %d\n", c.timestampSec, c.timestampNSec)
+}
+
 // Bytes return the data the current Chunk is holding
 func (c *Chunk) Bytes() []byte {
 	return c.data
@@ -190,6 +197,14 @@ func (c *Chunk) MarshalBinary() (data []byte, err error) {
 	binary.LittleEndian.PutUint32(
 		blob[offsetOfStatusCode:offsetOfTimeStampSec],
 		c.statusCode,
+	)
+	binary.LittleEndian.PutUint32(
+		blob[offsetOfTimeStampSec:offsetOfTimeStampNsec],
+		c.timestampSec,
+	)
+	binary.LittleEndian.PutUint32(
+		blob[offsetOfTimeStampNsec:offsetOfData],
+		c.timestampNSec,
 	)
 
 	return blob, nil
