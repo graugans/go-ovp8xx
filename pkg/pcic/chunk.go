@@ -76,8 +76,11 @@ const (
 
 func NewChunk(options ...ChunkOption) *Chunk {
 	chunk := &Chunk{
-		metadata: "{}",
-		data:     []byte{},
+		chunkSize:     offsetOfData,
+		headerSize:    offsetOfData,
+		headerVersion: 2,
+		metadata:      "{}",
+		data:          []byte{},
 	}
 	// Apply options
 	for _, opt := range options {
@@ -120,7 +123,24 @@ func (c *Chunk) Bytes() []byte {
 //
 // The binary representation is encoded in the byte slice
 func (c *Chunk) MarshalBinary() (data []byte, err error) {
-	return []byte{}, nil
+	blob := make([]byte, offsetOfData)
+	binary.LittleEndian.PutUint32(
+		blob,
+		uint32(c.chunkType),
+	)
+	binary.LittleEndian.PutUint32(
+		blob[offsetOfSize:offsetOfHeaderSize],
+		c.chunkSize,
+	)
+	binary.LittleEndian.PutUint32(
+		blob[offsetOfHeaderSize:offsetOfHeaderVersion],
+		c.headerSize,
+	)
+	binary.LittleEndian.PutUint32(
+		blob[offsetOfHeaderVersion:offsetOfWidth],
+		c.headerVersion,
+	)
+	return blob, nil
 }
 
 // UnmarshalBinary creates a ChunkData from a byte slice
@@ -216,9 +236,6 @@ func (c *Chunk) UnmarshalBinary(data []byte) error {
 	src := data[offsetOfData : offsetOfData+(c.chunkSize-c.headerSize)]
 	c.data = make([]byte, len(src))
 	copy(c.data, src)
-	if src == nil {
-		c.data = nil
-	}
 
 	if (c.dataWidth * c.dataHeight * byteSizeLUT[c.dataFormat]) != uint32(len(c.data)) {
 		return fmt.Errorf(
