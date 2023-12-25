@@ -1,6 +1,7 @@
 package pcic_test
 
 import (
+	"math/rand"
 	"testing"
 	"time"
 
@@ -337,5 +338,82 @@ func TestInvalidHeaderVersion(t *testing.T) {
 			0x00, 0x01, 0x00, 0x00, /* TIME_STAMP_NSEC */
 		}),
 		"An error expected, due to wrong header version",
+	)
+}
+
+func TestWithNil(t *testing.T) {
+	vector := pcic.NewChunk()
+	assert.Error(
+		t,
+		vector.UnmarshalBinary(nil),
+		"An error is expected when providing nil as input",
+	)
+}
+func TestWithDimension(t *testing.T) {
+	vector := make([]*pcic.Chunk, 2)
+	vector[0] = pcic.NewChunk(pcic.WithDimension(640, 480, pcic.FORMAT_32F))
+	vector[1] = pcic.NewChunk()
+	data, err := vector[0].MarshalBinary()
+	assert.NoError(t, err, "No Error expected during MarshalBinary")
+	assert.NoError(
+		t,
+		vector[1].UnmarshalBinary(data),
+		"No error expected while UnmarshalBinary",
+	)
+}
+
+func TestFrameCount(t *testing.T) {
+	count := rand.Uint32()
+	chunk := pcic.NewChunk()
+	chunk.SetFrameCount(count)
+	assert.Equal(
+		t,
+		count,
+		chunk.FrameCount(),
+		"No error is expected when getting the frame count",
+	)
+	clone := pcic.NewChunk()
+	data, err := chunk.MarshalBinary()
+	assert.NoError(t,
+		err,
+		"No error expected when creating a binary clone",
+	)
+	assert.NoError(t,
+		clone.UnmarshalBinary(data),
+		"No error expected when creating a clone from the bytes",
+	)
+	assert.Equal(
+		t,
+		chunk.FrameCount(),
+		clone.FrameCount(),
+		"The frame count of the original and the clone do not match",
+	)
+}
+
+func TestFrameStatus(t *testing.T) {
+	status := rand.Uint32()
+	chunk := pcic.NewChunk()
+	chunk.SetStatus(status)
+	assert.Equal(
+		t,
+		status,
+		chunk.Status(),
+		"No error expected when setting the staus",
+	)
+	clone := pcic.NewChunk()
+	data, err := chunk.MarshalBinary()
+	assert.NoError(t,
+		err,
+		"No error expected when creating a binary clone",
+	)
+	assert.NoError(t,
+		clone.UnmarshalBinary(data),
+		"No error expected when creating a clone from the bytes",
+	)
+	assert.Equal(
+		t,
+		chunk.Status(),
+		clone.Status(),
+		"The status of the original and the clone do not match",
 	)
 }

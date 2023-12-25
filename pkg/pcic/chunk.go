@@ -89,32 +89,62 @@ func NewChunk(options ...ChunkOption) *Chunk {
 	return chunk
 }
 
+// WithChunkType sets the chunk type of the new Chunk object
 func WithChunkType(cType ChunkType) ChunkOption {
 	return func(c *Chunk) {
 		c.chunkType = cType
 	}
 }
 
+// WithDimension set the chunk dimension and the given data format
+func WithDimension(width, height int, format DataFormat) ChunkOption {
+	return func(c *Chunk) {
+		c.dataWidth = uint32(width)
+		c.dataHeight = uint32(height)
+		c.dataFormat = format
+		c.data = make([]byte, c.dataWidth*c.dataHeight*byteSizeLUT[format])
+		c.chunkSize = c.headerSize + uint32(len(c.data))
+	}
+}
+
+// Type returns the given ChunkType
 func (c *Chunk) Type() ChunkType {
 	return c.chunkType
 }
 
+// Size returns the Size of the whole Chunk
+//
+// This is the size the Chunk is marshalled to.
 func (c *Chunk) Size() int {
 	return int(c.chunkSize)
 }
 
+// FrameCount returns the frame count of the Chunk
 func (c *Chunk) FrameCount() uint32 {
 	return c.frameCount
 }
 
+// SetFrameCount sets the frame count of the Chunk
+func (c *Chunk) SetFrameCount(num uint32) {
+	c.frameCount = num
+}
+
+// Status returns the status of the given Chunk
 func (c *Chunk) Status() uint32 {
 	return c.statusCode
 }
 
+// SetStatus sets the status of the Chunk
+func (c *Chunk) SetStatus(status uint32) {
+	c.statusCode = status
+}
+
+// TimeStamp returns the time stamp of the given Chunk
 func (c *Chunk) TimeStamp() time.Time {
 	return time.Unix(int64(c.timestampSec), int64(c.timestampNSec))
 }
 
+// Bytes return the data the current Chunk is holding
 func (c *Chunk) Bytes() []byte {
 	return c.data
 }
@@ -123,7 +153,7 @@ func (c *Chunk) Bytes() []byte {
 //
 // The binary representation is encoded in the byte slice
 func (c *Chunk) MarshalBinary() (data []byte, err error) {
-	blob := make([]byte, offsetOfData)
+	blob := make([]byte, offsetOfData+len(c.data))
 	binary.LittleEndian.PutUint32(
 		blob,
 		uint32(c.chunkType),
@@ -140,6 +170,28 @@ func (c *Chunk) MarshalBinary() (data []byte, err error) {
 		blob[offsetOfHeaderVersion:offsetOfWidth],
 		c.headerVersion,
 	)
+	binary.LittleEndian.PutUint32(
+		blob[offsetOfWidth:offsetOfHeight],
+		c.dataWidth,
+	)
+	binary.LittleEndian.PutUint32(
+		blob[offsetOfHeight:offsetOfFormat],
+		c.dataHeight,
+	)
+	binary.LittleEndian.PutUint32(
+		blob[offsetOfFormat:offsetOfTimeStamp],
+		uint32(c.dataFormat),
+	)
+	// We skip the timestamp for now, it is deprecated
+	binary.LittleEndian.PutUint32(
+		blob[offsetOfFrameCount:offsetOfStatusCode],
+		c.frameCount,
+	)
+	binary.LittleEndian.PutUint32(
+		blob[offsetOfStatusCode:offsetOfTimeStampSec],
+		c.statusCode,
+	)
+
 	return blob, nil
 }
 
@@ -148,6 +200,7 @@ func (c *Chunk) MarshalBinary() (data []byte, err error) {
 // It copies the data from the input slice to comply with the BinaryUnmarshaler
 // interface.
 func (c *Chunk) UnmarshalBinary(data []byte) error {
+
 	dataLen := uint32(len(data))
 	if dataLen < offsetOfData {
 		return errors.New("unable to parse an empty input")
