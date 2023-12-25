@@ -34,8 +34,10 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v4
         with:
+          lfs: 'true'
           go-version: '1.21'
-      - run: go test -v -cover -timeout=1m ./...
+      - run: git lfs pull
+      - run: go test -v -failfast -cover -timeout=1m ./...
 
   build:
     runs-on: ubuntu-latest
