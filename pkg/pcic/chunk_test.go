@@ -1,6 +1,8 @@
 package pcic_test
 
 import (
+	"bytes"
+	crand "crypto/rand"
 	"math/rand"
 	"testing"
 	"time"
@@ -443,5 +445,34 @@ func TestChunkTimeStamp(t *testing.T) {
 		chunk.TimeStamp(),
 		clone.TimeStamp(),
 		"The status of the original and the clone do not match",
+	)
+}
+
+func TestCloneWithData(t *testing.T) {
+	chunk := pcic.NewChunk(pcic.WithDimension(2, 1, pcic.FORMAT_16U))
+	assert.Equal(t,
+		4,
+		len(chunk.Bytes()),
+		"Size missmatch detected",
+	)
+	blob := chunk.Bytes()
+	_, err := crand.Read(blob)
+	assert.NoError(t,
+		err,
+		"We expect no error when getting random data",
+	)
+	clone := pcic.NewChunk()
+	data, err := chunk.MarshalBinary()
+	assert.NoError(t,
+		err,
+		"No error expected when creating a binary clone",
+	)
+	assert.NoError(t,
+		clone.UnmarshalBinary(data),
+		"No error expected when creating a clone from the bytes",
+	)
+	assert.True(t,
+		bytes.Equal(blob, clone.Bytes()),
+		"A data mismatch detected",
 	)
 }

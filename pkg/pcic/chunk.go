@@ -207,6 +207,8 @@ func (c *Chunk) MarshalBinary() (data []byte, err error) {
 		c.timestampNSec,
 	)
 
+	// copy the data we keep
+	copy(blob[offsetOfData:], c.data)
 	return blob, nil
 }
 
