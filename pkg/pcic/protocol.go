@@ -1,14 +1,20 @@
 package pcic
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
 	"io"
 )
 
-type PCIC struct {
-}
+type (
+	PCICClient struct {
+		reader *bufio.Reader
+		writer *bufio.Writer
+	}
+	PCICClientOption func(c *PCICClient)
+)
 
 const (
 	headerSize           int = 20
@@ -53,14 +59,31 @@ type ErrorMessage struct {
 	Message string
 }
 
-func (p *PCIC) Receive(reader io.Reader, handler MessageHandler) error {
+func NewPCICClient(options ...PCICClientOption) *PCICClient {
+	pcic := &PCICClient{}
+	// Apply options
+	for _, opt := range options {
+		opt(pcic)
+	}
+	return pcic
+}
+
+func WithBufioReaderWriter(com *bufio.ReadWriter) PCICClientOption {
+	return func(c *PCICClient) {
+		c.reader = com.Reader
+		c.writer = com.Writer
+	}
+}
+
+func (p *PCICClient) ProcessIncomming(handler MessageHandler) error {
+	reader := p.reader
+	if reader == nil {
+		return errors.New("no bufio.Reader provided, please instantiate the object")
+	}
 	header := make([]byte, headerSize)
-	n, err := io.ReadFull(reader, header)
+	_, err := io.ReadFull(reader, header)
 	if err != nil {
 		return err
-	}
-	if n < headerSize {
-		return fmt.Errorf("not enough data received: %d", n)
 	}
 	firstTicket := header[:ticketFieldLength]
 	secondTicket := header[secondTicketOffset:dataOffset]
@@ -75,12 +98,9 @@ func (p *PCIC) Receive(reader io.Reader, handler MessageHandler) error {
 		return fmt.Errorf("the length field does not start with 'L': %v", lengthBuffer)
 	}
 	length := 0
-	n, err = fmt.Sscanf(lengthBuffer, "L%09d\r\n", &length)
+	_, err = fmt.Sscanf(lengthBuffer, "L%09d\r\n", &length)
 	if err != nil {
 		return err
-	}
-	if n != 1 {
-		return errors.New("no length in the length field detected")
 	}
 	if length < minimumContentLength {
 		return errors.New("the length information is too short")
@@ -101,10 +121,6 @@ func (p *PCIC) Receive(reader io.Reader, handler MessageHandler) error {
 		errorStatus, err := errorParser(data)
 		handler.Error(errorStatus)
 		return err
-	} else if bytes.Equal(notificationTicket, firstTicket) {
-		notification, err := notificationParser(data)
-		handler.Notification(notification)
-		return err
 	}
 	return fmt.Errorf("unknown ticket received: %s", string(firstTicket))
 }
@@ -124,24 +140,11 @@ func errorParser(data []byte) (ErrorMessage, error) {
 	return errorStatus, err
 }
 
-func notificationParser(data []byte) (NotificationMessage, error) {
-	var err error
-	notification := NotificationMessage{}
-	return notification, err
-}
-
 func asyncResultParser(data []byte) (Frame, error) {
 	fmt.Printf("Async Data received\n")
 	frame := Frame{}
 	var err error
 	contentDecorated := data[:len(data)-delimiterFieldLength]
-	if len(startMarker)+len(endMarker) > len(contentDecorated) {
-		return frame, fmt.Errorf("missing start (%s) and end markers (%s) buffer length: %d",
-			startMarker,
-			endMarker,
-			len(contentDecorated),
-		)
-	}
 	content := contentDecorated[len(endMarker) : len(contentDecorated)-len(endMarker)]
 	if len(content) == 0 {
 		// no content is available

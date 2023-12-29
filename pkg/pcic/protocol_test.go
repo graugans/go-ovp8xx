@@ -40,15 +40,118 @@ func (r *PCICAsyncReceiver) Notification(msg pcic.NotificationMessage) {
 var testHandler *PCICAsyncReceiver = &PCICAsyncReceiver{}
 
 func TestMinimalReceive(t *testing.T) {
-	r := strings.NewReader("Hello, Reader!")
-	p := pcic.PCIC{}
-	err := p.Receive(r, testHandler)
+	readerWriter := bufio.NewReadWriter(
+		bufio.NewReader(strings.NewReader("Hello, Reader!")),
+		nil,
+	)
+	p := pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
+	err := p.ProcessIncomming(testHandler)
 	assert.Error(t, err, "We expect an error while receiving malformed data")
 
 	// Test the minimal possible PCIC message
-	r = strings.NewReader("0000L000000014\r\n0000starstop\r\n")
-	err = p.Receive(r, testHandler)
+	readerWriter = bufio.NewReadWriter(
+		bufio.NewReader(strings.NewReader("0000L000000014\r\n0000starstop\r\n")),
+		nil,
+	)
+	p = pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
+	err = p.ProcessIncomming(testHandler)
 	assert.NoError(t, err, "We expect no error while receiving data")
+}
+
+func TestNotMatchingTickets(t *testing.T) {
+	// Test the minimal possible PCIC message
+	readerWriter := bufio.NewReadWriter(
+		bufio.NewReader(strings.NewReader("0001L000000014\r\n0000starstop\r\n")),
+		nil,
+	)
+	p := pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
+	err := p.ProcessIncomming(testHandler)
+	assert.Error(t,
+		err,
+		"We expect an error because the tickets do not match",
+	)
+}
+
+func TestMalformedLength(t *testing.T) {
+	// Test the minimal possible PCIC message
+	readerWriter := bufio.NewReadWriter(
+		bufio.NewReader(strings.NewReader("0000l000000014\r\n0000starstop\r\n")),
+		nil,
+	)
+	p := pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
+	err := p.ProcessIncomming(testHandler)
+	assert.Error(t,
+		err,
+		"We expect an error because the length field does not start with `L`",
+	)
+}
+
+func TestMalformedLengthField(t *testing.T) {
+	// Test the minimal possible PCIC message
+	readerWriter := bufio.NewReadWriter(
+		bufio.NewReader(strings.NewReader("0000L00000014X\r\n0000starstop\r\n")),
+		nil,
+	)
+	p := pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
+	err := p.ProcessIncomming(testHandler)
+	assert.Error(t,
+		err,
+		"We expect an error because the length field is no well formed",
+	)
+}
+
+func TestMinimumLengthField(t *testing.T) {
+	// Test the minimal possible PCIC message
+	readerWriter := bufio.NewReadWriter(
+		bufio.NewReader(strings.NewReader("0000L000000005\r\n0000starstop\r\n")),
+		nil,
+	)
+	p := pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
+	err := p.ProcessIncomming(testHandler)
+	assert.Error(t,
+		err,
+		"We expect an error because the length is too short",
+	)
+}
+
+func TestBiggerLengthField(t *testing.T) {
+	// Test the minimal possible PCIC message
+	readerWriter := bufio.NewReadWriter(
+		bufio.NewReader(strings.NewReader("0000L000000015\r\n0000starstop\r\n")),
+		nil,
+	)
+	p := pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
+	err := p.ProcessIncomming(testHandler)
+	assert.Error(t,
+		err,
+		"We expect an error because the length too big",
+	)
+}
+
+func TestInvalidTrailer(t *testing.T) {
+	// Test the minimal possible PCIC message
+	readerWriter := bufio.NewReadWriter(
+		bufio.NewReader(strings.NewReader("0000L000000014\r\n0000starstop\r\r")),
+		nil,
+	)
+	p := pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
+	err := p.ProcessIncomming(testHandler)
+	assert.Error(t,
+		err,
+		"We expect an error because the trailer is invalid",
+	)
+}
+func TestWithNilReader(t *testing.T) {
+	readerWriter := bufio.NewReadWriter(
+		nil,
+		nil,
+	)
+	p := pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
+	err := p.ProcessIncomming(testHandler)
+	assert.Error(t,
+		err,
+		"We expect an error when reader is nil",
+	)
 }
 
 func TestReceiveWithChunk(t *testing.T) {
@@ -72,15 +175,19 @@ func TestReceiveWithChunk(t *testing.T) {
 		c.UnmarshalBinary(chunkData),
 		"A successful parse expected",
 	)
-	p := pcic.PCIC{}
+
 	buffer := fmt.Sprintf(
 		"0000L%09d\r\n0000star%sstop\r\n",
 		miniMalContentLength+len(chunkData),
 		string(chunkData),
 	)
 	// Test the PCIC message with single chunk
-	r := strings.NewReader(buffer)
-	err := p.Receive(r, testHandler)
+	readerWriter := bufio.NewReadWriter(
+		bufio.NewReader(strings.NewReader(buffer)),
+		nil,
+	)
+	p := pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
+	err := p.ProcessIncomming(testHandler)
 	assert.NoError(t, err, "We expect no error while receiving data")
 
 	assert.Equal(t,
@@ -95,8 +202,12 @@ func TestReceiveWithChunk(t *testing.T) {
 		string(chunkData),
 	)
 	// Test the PCIC message with single chunk
-	r = strings.NewReader(buffer)
-	err = p.Receive(r, testHandler)
+	readerWriter = bufio.NewReadWriter(
+		bufio.NewReader(strings.NewReader(buffer)),
+		nil,
+	)
+	p = pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
+	err = p.ProcessIncomming(testHandler)
 	assert.Error(t, err, "We expect an error while receiving malformed data")
 
 	// test with invalid ticket after the chunk
@@ -105,8 +216,12 @@ func TestReceiveWithChunk(t *testing.T) {
 		miniMalContentLength+len(chunkData),
 		string(chunkData),
 	)
-	r = strings.NewReader(buffer)
-	err = p.Receive(r, testHandler)
+	readerWriter = bufio.NewReadWriter(
+		bufio.NewReader(strings.NewReader(buffer)),
+		nil,
+	)
+	p = pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
+	err = p.ProcessIncomming(testHandler)
 	assert.Error(
 		t,
 		err,
@@ -115,15 +230,49 @@ func TestReceiveWithChunk(t *testing.T) {
 
 }
 
+func TestReceiveWithNewChunk(t *testing.T) {
+	chunk := pcic.NewChunk(
+		pcic.WithChunkType(pcic.RADIAL_DISTANCE_NOISE),
+		pcic.WithDimension(100, 100, pcic.FORMAT_16U),
+	)
+	chunkData, err := chunk.MarshalBinary()
+	assert.NoError(t,
+		err,
+		"We do not expect an error while marshalling the Chunk to binary",
+	)
+
+	buffer := fmt.Sprintf(
+		"0000L%09d\r\n0000star%sstop\r\n",
+		miniMalContentLength+len(chunkData),
+		string(chunkData),
+	)
+	// Test the PCIC message with single chunk
+	readerWriter := bufio.NewReadWriter(
+		bufio.NewReader(strings.NewReader(buffer)),
+		nil,
+	)
+	p := pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
+	err = p.ProcessIncomming(testHandler)
+	assert.NoError(t,
+		err,
+		"We expect no error while receiving chunk data",
+	)
+}
+
 func TestWithRealChunkData(t *testing.T) {
 	file, err := tfs.Open("testdata/pcic-test-data.blob.bz2")
 	assert.NoError(t, err, "No error expected while reading the input")
 	defer file.Close()
 	buf := bufio.NewReader(file)
 	cr := bzip2.NewReader(buf)
-	p := pcic.PCIC{}
+	readerWriter := bufio.NewReadWriter(
+		bufio.NewReader(cr),
+		nil,
+	)
+	p := pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
+
 	for {
-		err := p.Receive(cr, testHandler)
+		err := p.ProcessIncomming(testHandler)
 		if errors.Is(err, io.EOF) {
 			break
 		}
@@ -137,15 +286,58 @@ func TestWithRealChunkData(t *testing.T) {
 
 }
 
+func TestWithMalformedErrorData(t *testing.T) {
+	buffer := fmt.Sprintf(
+		"0001L%09d\r\n0001000000000:\r\n",
+		16,
+	)
+	// Test the PCIC message with error message
+	readerWriter := bufio.NewReadWriter(
+		bufio.NewReader(strings.NewReader(buffer)),
+		nil,
+	)
+	p := pcic.NewPCICClient(
+		pcic.WithBufioReaderWriter(readerWriter),
+	)
+	err := p.ProcessIncomming(testHandler)
+	assert.Error(t,
+		err,
+		"We expect an error while receiving malformed data",
+	)
+}
+func TestWithErrorData(t *testing.T) {
+	buffer := fmt.Sprintf(
+		"0001L%09d\r\n0001000000000:{}\r\n",
+		18,
+	)
+	// Test the PCIC message with error message
+	readerWriter := bufio.NewReadWriter(
+		bufio.NewReader(strings.NewReader(buffer)),
+		nil,
+	)
+	p := pcic.NewPCICClient(
+		pcic.WithBufioReaderWriter(readerWriter),
+	)
+	err := p.ProcessIncomming(testHandler)
+	assert.NoError(t,
+		err,
+		"We expect no error while receiving data",
+	)
+}
+
 func TestWithRealErrorData(t *testing.T) {
 	file, err := tfs.Open("testdata/pcic-diagnostic.blob.bz2")
 	assert.NoError(t, err, "No error expected while reading the input")
 	defer file.Close()
 	buf := bufio.NewReader(file)
 	cr := bzip2.NewReader(buf)
-	p := pcic.PCIC{}
+	readerWriter := bufio.NewReadWriter(
+		bufio.NewReader(cr),
+		nil,
+	)
+	p := pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
 	for {
-		err := p.Receive(cr, testHandler)
+		err := p.ProcessIncomming(testHandler)
 		if errors.Is(err, io.EOF) {
 			break
 		}
