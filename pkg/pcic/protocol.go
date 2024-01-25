@@ -38,9 +38,8 @@ const (
 )
 
 var (
-	resultTicket       []byte = []byte{'0', '0', '0', '0'}
-	errorTicket        []byte = []byte{'0', '0', '0', '1'}
-	notificationTicket []byte = []byte{'0', '0', '1', '0'}
+	resultTicket []byte = []byte{'0', '0', '0', '0'}
+	errorTicket  []byte = []byte{'0', '0', '0', '1'}
 )
 
 type MessageHandler interface {
