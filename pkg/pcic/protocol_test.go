@@ -44,8 +44,9 @@ func TestMinimalReceive(t *testing.T) {
 		bufio.NewReader(strings.NewReader("Hello, Reader!")),
 		nil,
 	)
-	p := pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
-	err := p.ProcessIncomming(testHandler)
+	p, err := pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
+	assert.NoError(t, err, "We expect no error while creating the PCICClient")
+	err = p.ProcessIncomming(testHandler)
 	assert.Error(t, err, "We expect an error while receiving malformed data")
 
 	// Test the minimal possible PCIC message
@@ -53,7 +54,8 @@ func TestMinimalReceive(t *testing.T) {
 		bufio.NewReader(strings.NewReader("0000L000000014\r\n0000starstop\r\n")),
 		nil,
 	)
-	p = pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
+	p, err = pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
+	assert.NoError(t, err, "We expect no error while creating the PCICClient")
 	err = p.ProcessIncomming(testHandler)
 	assert.NoError(t, err, "We expect no error while receiving data")
 }
@@ -64,8 +66,9 @@ func TestNotMatchingTickets(t *testing.T) {
 		bufio.NewReader(strings.NewReader("0001L000000014\r\n0000starstop\r\n")),
 		nil,
 	)
-	p := pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
-	err := p.ProcessIncomming(testHandler)
+	client, err := pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
+	assert.NoError(t, err, "We expect no error while creating the PCICClient")
+	err = client.ProcessIncomming(testHandler)
 	assert.Error(t,
 		err,
 		"We expect an error because the tickets do not match",
@@ -78,8 +81,9 @@ func TestMalformedLength(t *testing.T) {
 		bufio.NewReader(strings.NewReader("0000l000000014\r\n0000starstop\r\n")),
 		nil,
 	)
-	p := pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
-	err := p.ProcessIncomming(testHandler)
+	p, err := pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
+	assert.NoError(t, err, "We expect no error while creating the PCICClient")
+	err = p.ProcessIncomming(testHandler)
 	assert.Error(t,
 		err,
 		"We expect an error because the length field does not start with `L`",
@@ -92,8 +96,9 @@ func TestMalformedLengthField(t *testing.T) {
 		bufio.NewReader(strings.NewReader("0000L00000014X\r\n0000starstop\r\n")),
 		nil,
 	)
-	p := pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
-	err := p.ProcessIncomming(testHandler)
+	p, err := pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
+	assert.NoError(t, err, "We expect no error while creating the PCICClient")
+	err = p.ProcessIncomming(testHandler)
 	assert.Error(t,
 		err,
 		"We expect an error because the length field is no well formed",
@@ -106,8 +111,9 @@ func TestMinimumLengthField(t *testing.T) {
 		bufio.NewReader(strings.NewReader("0000L000000005\r\n0000starstop\r\n")),
 		nil,
 	)
-	p := pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
-	err := p.ProcessIncomming(testHandler)
+	p, err := pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
+	assert.NoError(t, err, "We expect no error while creating the PCICClient")
+	err = p.ProcessIncomming(testHandler)
 	assert.Error(t,
 		err,
 		"We expect an error because the length is too short",
@@ -120,8 +126,9 @@ func TestBiggerLengthField(t *testing.T) {
 		bufio.NewReader(strings.NewReader("0000L000000015\r\n0000starstop\r\n")),
 		nil,
 	)
-	p := pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
-	err := p.ProcessIncomming(testHandler)
+	p, err := pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
+	assert.NoError(t, err, "We expect no error while creating the PCICClient")
+	err = p.ProcessIncomming(testHandler)
 	assert.Error(t,
 		err,
 		"We expect an error because the length too big",
@@ -134,8 +141,9 @@ func TestInvalidTrailer(t *testing.T) {
 		bufio.NewReader(strings.NewReader("0000L000000014\r\n0000starstop\r\r")),
 		nil,
 	)
-	p := pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
-	err := p.ProcessIncomming(testHandler)
+	p, err := pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
+	assert.NoError(t, err, "We expect no error while creating the PCICClient")
+	err = p.ProcessIncomming(testHandler)
 	assert.Error(t,
 		err,
 		"We expect an error because the trailer is invalid",
@@ -146,8 +154,9 @@ func TestWithNilReader(t *testing.T) {
 		nil,
 		nil,
 	)
-	p := pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
-	err := p.ProcessIncomming(testHandler)
+	p, err := pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
+	assert.NoError(t, err, "We expect no error while creating the PCICClient")
+	err = p.ProcessIncomming(testHandler)
 	assert.Error(t,
 		err,
 		"We expect an error when reader is nil",
@@ -186,8 +195,9 @@ func TestReceiveWithChunk(t *testing.T) {
 		bufio.NewReader(strings.NewReader(buffer)),
 		nil,
 	)
-	p := pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
-	err := p.ProcessIncomming(testHandler)
+	p, err := pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
+	assert.NoError(t, err, "We expect no error while creating the PCICClient")
+	err = p.ProcessIncomming(testHandler)
 	assert.NoError(t, err, "We expect no error while receiving data")
 
 	assert.Equal(t,
@@ -206,7 +216,8 @@ func TestReceiveWithChunk(t *testing.T) {
 		bufio.NewReader(strings.NewReader(buffer)),
 		nil,
 	)
-	p = pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
+	p, err = pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
+	assert.NoError(t, err, "We expect no error while creating the PCICClient")
 	err = p.ProcessIncomming(testHandler)
 	assert.Error(t, err, "We expect an error while receiving malformed data")
 
@@ -220,7 +231,8 @@ func TestReceiveWithChunk(t *testing.T) {
 		bufio.NewReader(strings.NewReader(buffer)),
 		nil,
 	)
-	p = pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
+	p, err = pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
+	assert.NoError(t, err, "We expect no error while creating the PCICClient")
 	err = p.ProcessIncomming(testHandler)
 	assert.Error(
 		t,
@@ -251,7 +263,8 @@ func TestReceiveWithNewChunk(t *testing.T) {
 		bufio.NewReader(strings.NewReader(buffer)),
 		nil,
 	)
-	p := pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
+	p, err := pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
+	assert.NoError(t, err, "We expect no error while creating the PCICClient")
 	err = p.ProcessIncomming(testHandler)
 	assert.NoError(t,
 		err,
@@ -269,8 +282,8 @@ func TestWithRealChunkData(t *testing.T) {
 		bufio.NewReader(cr),
 		nil,
 	)
-	p := pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
-
+	p, err := pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
+	assert.NoError(t, err, "We expect no error while creating the PCICClient")
 	for {
 		err := p.ProcessIncomming(testHandler)
 		if errors.Is(err, io.EOF) {
@@ -296,10 +309,11 @@ func TestWithMalformedErrorData(t *testing.T) {
 		bufio.NewReader(strings.NewReader(buffer)),
 		nil,
 	)
-	p := pcic.NewPCICClient(
+	p, err := pcic.NewPCICClient(
 		pcic.WithBufioReaderWriter(readerWriter),
 	)
-	err := p.ProcessIncomming(testHandler)
+	assert.NoError(t, err, "We expect no error while creating the PCICClient")
+	err = p.ProcessIncomming(testHandler)
 	assert.Error(t,
 		err,
 		"We expect an error while receiving malformed data",
@@ -315,10 +329,11 @@ func TestWithErrorData(t *testing.T) {
 		bufio.NewReader(strings.NewReader(buffer)),
 		nil,
 	)
-	p := pcic.NewPCICClient(
+	p, err := pcic.NewPCICClient(
 		pcic.WithBufioReaderWriter(readerWriter),
 	)
-	err := p.ProcessIncomming(testHandler)
+	assert.NoError(t, err, "We expect no error while creating the PCICClient")
+	err = p.ProcessIncomming(testHandler)
 	assert.NoError(t,
 		err,
 		"We expect no error while receiving data",
@@ -335,7 +350,8 @@ func TestWithRealErrorData(t *testing.T) {
 		bufio.NewReader(cr),
 		nil,
 	)
-	p := pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
+	p, err := pcic.NewPCICClient(pcic.WithBufioReaderWriter(readerWriter))
+	assert.NoError(t, err, "We expect no error while creating the PCICClient")
 	for {
 		err := p.ProcessIncomming(testHandler)
 		if errors.Is(err, io.EOF) {

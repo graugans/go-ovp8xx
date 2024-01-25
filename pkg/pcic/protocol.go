@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 )
 
 type (
@@ -13,7 +14,7 @@ type (
 		reader *bufio.Reader
 		writer *bufio.Writer
 	}
-	PCICClientOption func(c *PCICClient)
+	PCICClientOption func(c *PCICClient) error
 )
 
 const (
@@ -58,19 +59,38 @@ type ErrorMessage struct {
 	Message string
 }
 
-func NewPCICClient(options ...PCICClientOption) *PCICClient {
+func NewPCICClient(options ...PCICClientOption) (*PCICClient, error) {
+	var err error
 	pcic := &PCICClient{}
 	// Apply options
 	for _, opt := range options {
-		opt(pcic)
+		if err = opt(pcic); err != nil {
+			return nil, err
+		}
 	}
-	return pcic
+	return pcic, err
 }
 
 func WithBufioReaderWriter(com *bufio.ReadWriter) PCICClientOption {
-	return func(c *PCICClient) {
+	return func(c *PCICClient) error {
 		c.reader = com.Reader
 		c.writer = com.Writer
+		return nil
+	}
+}
+
+// WithTCPClient is a PCICClientOption that sets up a TCP client connection to the specified URI.
+// It establishes a connection using the net.Dial function and initializes the reader and writer for the PCICClient.
+// If an error occurs during the connection establishment, it will be handled and returned.
+func WithTCPClient(hostname string, port uint16) PCICClientOption {
+	return func(c *PCICClient) error {
+		conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", hostname, port))
+		if err != nil {
+			return err
+		}
+		c.reader = bufio.NewReader(conn)
+		c.writer = bufio.NewWriter(conn)
+		return nil
 	}
 }
 
