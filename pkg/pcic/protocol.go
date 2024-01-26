@@ -160,7 +160,6 @@ func errorParser(data []byte) (ErrorMessage, error) {
 }
 
 func asyncResultParser(data []byte) (Frame, error) {
-	fmt.Printf("Async Data received\n")
 	frame := Frame{}
 	var err error
 	contentDecorated := data[:len(data)-delimiterFieldLength]

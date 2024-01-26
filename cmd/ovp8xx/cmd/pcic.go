@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/graugans/go-ovp8xx/pkg/pcic"
 	"github.com/spf13/cobra"
@@ -15,15 +16,25 @@ type PCICReceiver struct {
 	frame           pcic.Frame               // The PCIC frame.
 	notificationMsg pcic.NotificationMessage // The notification message.
 	errorMsg        pcic.ErrorMessage        // The error message.
-	framecount      int64                    // The count of frames received.
+	framecount      uint32                   // The count of frames received.
+	lastFrame       time.Time                // The time of the last frame received.
 }
 
 // Result is a method of the PCICReceiver struct that sets the received frame and increments the framecount.
 // It takes a pcic.Frame as a parameter.
 func (r *PCICReceiver) Result(frame pcic.Frame) {
 	r.frame = frame
-	fmt.Printf("Framecount: %d\n", r.framecount)
-	r.framecount++
+	if len(r.frame.Chunks) > 0 && r.framecount != frame.Chunks[0].FrameCount() {
+		interFrameTime := r.frame.Chunks[0].TimeStamp().Sub(r.lastFrame)
+		r.lastFrame = r.frame.Chunks[0].TimeStamp()
+		fmt.Printf("Result data: frame: %d, time diff: %d ms, fps: %.3f\n",
+			frame.Chunks[0].FrameCount(),
+			interFrameTime.Milliseconds(),
+			1/interFrameTime.Seconds(),
+		)
+		r.framecount = frame.Chunks[0].FrameCount()
+	}
+
 }
 
 // Error handles the error message received from the PCIC.
