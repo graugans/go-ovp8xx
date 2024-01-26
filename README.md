@@ -1,3 +1,5 @@
+
+
 # Go client for the ifm OVP8xx series of devices
 
 A GO module and cli to access the ifm OVP8xx series of devices.
@@ -5,6 +7,7 @@ A GO module and cli to access the ifm OVP8xx series of devices.
 [![GitHub go.mod Go version of a Go module](https://img.shields.io/github/go-mod/go-version/gomods/athens.svg)](https://github.com/gomods/athens)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 ![example workflow](https://github.com/graugans/go-ovp8xx/actions/workflows/go.yml/badge.svg)
+[![codecov](https://codecov.io/gh/graugans/go-ovp8xx/graph/badge.svg?token=BU6UPYCUPI)](https://codecov.io/gh/graugans/go-ovp8xx)
 
 ## Project status
 
@@ -69,4 +72,13 @@ The result depends on your specific device:
     }
   }
 }
+```
+
+## Testing
+
+Please ensure you have the Git Large File Storage extension installed. Some of the tests require blobs which are handled as Large File Storage files. In case the files are not populated as expected this may help:
+
+```sh
+git lfs fetch --all
+git lfs pull
 ```
