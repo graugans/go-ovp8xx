@@ -60,12 +60,13 @@ func pcicCommand(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	for {
-		err := pcic.ProcessIncomming(testHandler)
+		err = pcic.ProcessIncomming(testHandler)
 		if err != nil {
-			return err
+			// An error occured, we break the loop
+			break
 		}
 	}
-	return nil
+	return err
 }
 
 // pcicCmd represents the pcic command
