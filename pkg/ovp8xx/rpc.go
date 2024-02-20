@@ -124,6 +124,19 @@ func (device *Client) Reboot() error {
 	return client.Call("reboot", nil, nil)
 }
 
+// RebootToSWUpdate reboots the OVP8xx device into software update mode.
+// It establishes a connection with the device using XML-RPC and calls the "rebootToRecovery" method.
+// This method is typically used to initiate a firmware update on the device.
+// Returns an error if there was a problem establishing the connection or calling the method.
+func (device *Client) RebootToSWUpdate() error {
+	client, err := xmlrpc.NewClient(device.url)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+	return client.Call("rebootToRecovery", nil, nil)
+}
+
 func (device *DiagnosisClient) GetFiltered(conf Config) (Config, error) {
 	client, err := xmlrpc.NewClient(device.url)
 	if err != nil {
