@@ -9,7 +9,7 @@ import (
 )
 
 func rebootCommand(cmd *cobra.Command, args []string) error {
-
+	var swu bool
 	host, err := rootCmd.PersistentFlags().GetString("ip")
 	if err != nil {
 		return err
@@ -18,6 +18,14 @@ func rebootCommand(cmd *cobra.Command, args []string) error {
 	o3r := ovp8xx.NewClient(
 		ovp8xx.WithHost(host),
 	)
+
+	if swu, err = cmd.Flags().GetBool("swupdate"); err != nil {
+		return err
+	}
+
+	if swu {
+		return o3r.RebootToSWUpdate()
+	}
 
 	return o3r.Reboot()
 }
@@ -31,4 +39,5 @@ var rebootCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(rebootCmd)
+	rebootCmd.Flags().Bool("swupdate", false, "Reboot to the SWUpdate mode")
 }
