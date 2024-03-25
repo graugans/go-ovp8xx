@@ -2,7 +2,12 @@
 
 # Go client for the ifm OVP8xx series of devices
 
+⚠️ This is my personal project it is not an official ifm product. Please use the official [ifm3d](https://github.com/ifm/ifm3d) project if you need an officially supported version ⚠️
+
+## Introduction
+
 A GO module and cli to access the ifm OVP8xx series of devices.
+
 
 [![GitHub go.mod Go version of a Go module](https://img.shields.io/github/go-mod/go-version/gomods/athens.svg)](https://github.com/gomods/athens)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
@@ -19,6 +24,7 @@ This project is still a work in progress and will suffer from breaking API chang
 
 The recommended and easiest way is to download the pre-build binary from the [GitHub Release page](https://github.com/graugans/go-ovp8xx/releases).
 
+⚠️ The Windows binary maybe flagged by a Virus Scanner, please also read the note from the [Go Team](https://go.dev/doc/faq#virus) ⚠️
 
 ### Go get
 
