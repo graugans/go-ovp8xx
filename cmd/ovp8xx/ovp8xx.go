@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/graugans/go-ovp8xx/cmd/ovp8xx/cmd"
+	"github.com/graugans/go-ovp8xx/v2/cmd/ovp8xx/cmd"
 )
 
 var (

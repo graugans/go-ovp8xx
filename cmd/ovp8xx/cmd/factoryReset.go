@@ -4,7 +4,7 @@ Copyright © 2023 Christian Ege <ch@ege.io>
 package cmd
 
 import (
-	"github.com/graugans/go-ovp8xx/pkg/ovp8xx"
+	"github.com/graugans/go-ovp8xx/v2/pkg/ovp8xx"
 	"github.com/spf13/cobra"
 )
 
