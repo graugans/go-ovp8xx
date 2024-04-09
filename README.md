@@ -31,7 +31,7 @@ The recommended and easiest way is to download the pre-build binary from the [Gi
 If you have a decent Go version installed
 
 ```sh
-go install github.com/graugans/go-ovp8xx/cmd/ovp8xx@latest
+go install github.com/graugans/go-ovp8xx/v2/cmd/ovp8xx@latest
 ```
 
 ## API usage
@@ -39,7 +39,7 @@ go install github.com/graugans/go-ovp8xx/cmd/ovp8xx@latest
 Within in your Go project get the ovp8xx package first
 
 ```
-go get github.com/graugans/go-ovp8xx
+go get github.com/graugans/go-ovp8xx/v2
 ```
 
 The following example will query the software Version of your OVP8xx. This assumes that either the OVP8xx is using the default IP address of `192.168.0.69` or the environment variable `OVP8XX_IP` is set. In case you want to set the IP in code please use `ovp8xx.NewClient(ovp8xx.WithHost("192.168.0.69"))` to construct the client.
@@ -50,7 +50,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/graugans/go-ovp8xx/pkg/ovp8xx"
+	"github.com/graugans/go-ovp8xx/v2/pkg/ovp8xx"
 )
 
 func main() {
