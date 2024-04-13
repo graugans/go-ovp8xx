@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Christian Ege <ch@ege.io>
+Copyright © 2024 Christian Ege <ch@ege.io>
 */
 package cmd
 
@@ -12,7 +12,7 @@ import (
 )
 
 func waitForOnlineCommand(cmd *cobra.Command, args []string) error {
-	var ok = false
+	var ok bool
 	var err error
 	helper, err := NewHelper(cmd)
 	if err != nil {
