@@ -40,11 +40,11 @@ Valid queries are for example:
 - To query all ports including all sub elements the query "/ports" can be used.
 
 In contrast to the concept of a JSON pointer the OVP8xx does not response with the data
-the pointer is pointing to, it returns the full object hirachie with the encapsulating
+the pointer is pointing to, it returns the full object hierarchy with the encapsulating
 object paths.
 
 A query of the name of the "port6" (/ports/port6/info/name) not just returns the object of that port,
-it also keeps the hirachy intact:
+it also keeps the hierarchy intact:
 
 {
 	"ports":

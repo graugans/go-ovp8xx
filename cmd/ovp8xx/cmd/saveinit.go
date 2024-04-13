@@ -12,11 +12,11 @@ import (
 var saveInitCmd = &cobra.Command{
 	Use:   "saveInit",
 	Short: "Saves the init configuration on the device",
-	Long: `To store the configuration persistant on the device the command saveInit can be used.
+	Long: `To store the configuration persistent on the device the command saveInit can be used.
 
-A safed configuration persists a reboot. This is best used in combination with the "set" command.
+A saved configuration persists a reboot. This is best used in combination with the "set" command.
 
-Please use this with care. The scope should be as narrow as posible, to prevent any conflicts.
+Please use this with care. The scope should be as narrow as possible, to prevent any conflicts.
 In case no JSON Pointer is provided the complete configuration is saved`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		pointers, err := cmd.Flags().GetStringSlice("pointer")
