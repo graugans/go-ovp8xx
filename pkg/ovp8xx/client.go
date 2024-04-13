@@ -64,7 +64,9 @@ func (device *Client) GetDiagnosticClient() *DiagnosisClient {
 func (d *Client) IsAvailable(timeout time.Duration) (bool, error) {
 	var err error
 	proc := make(chan struct{}, 1)
-
+	conf := *NewConfig()
+	// result is a struct that represents the response from the OVP8xx device.
+	// It contains information about the device's diagnostic data, such as the configuration initialization stages.
 	result := struct {
 		Device struct {
 			Diagnostic struct {
@@ -72,7 +74,7 @@ func (d *Client) IsAvailable(timeout time.Duration) (bool, error) {
 			} `json:"diagnostic"`
 		} `json:"device"`
 	}{}
-	conf := *NewConfig()
+
 	go func() {
 		for {
 			if conf, err = d.Get([]string{"/device/diagnostic/confInitStages"}); err != nil {
