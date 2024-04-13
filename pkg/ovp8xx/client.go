@@ -2,7 +2,9 @@ package ovp8xx
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"slices"
 	"time"
 )
 
@@ -63,14 +65,30 @@ func (d *Client) IsAvailable(timeout time.Duration) (bool, error) {
 	var err error
 	proc := make(chan struct{}, 1)
 
+	result := struct {
+		Device struct {
+			Diagnostic struct {
+				ConfInitStages []string `json:"confInitStages"`
+			} `json:"diagnostic"`
+		} `json:"device"`
+	}{}
+	conf := *NewConfig()
 	go func() {
 		for {
-			if _, err := d.Get([]string{"/device"}); err != nil {
+			if conf, err = d.Get([]string{"/device/diagnostic/confInitStages"}); err != nil {
 				// In case of an error retry, regardless of an timeout
 				continue
 			}
-			// we are done, the get call was successful
-			proc <- struct{}{}
+			// Unmarshal the data into the result struct
+			if err = json.Unmarshal([]byte(conf.String()), &result); err != nil {
+				// In case of an error retry until the timeout
+				continue
+			}
+			// Check if the device is ready
+			if slices.Contains(result.Device.Diagnostic.ConfInitStages, "device") {
+				// we are done, the get call was successful
+				proc <- struct{}{}
+			}
 		}
 	}()
 
