@@ -34,7 +34,7 @@ var getSchemaCmd = &cobra.Command{
 	Use:   "getSchema",
 	Short: "Retrieve the currently used JSON schema from the device",
 	Long: `The OVP8xx getSchema command accepts a list of JSON pointers.
-The JSON schema provides details about multiple aspects of a paramter. It
+The JSON schema provides details about multiple aspects of a parameter. It
 contains information like the type of a parameter and its defaults. It also
 provides information weather a parameter is readOnly or not.
 
@@ -76,7 +76,7 @@ The pointer '/device/swVersion/diagnostics' for example provides this informatio
 	"type": "object"
   }
 
-When no query is provided the complete schema is returend.
+When no query is provided the complete schema is returned.
 `,
 	RunE: getSchemaCommand,
 }

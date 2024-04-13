@@ -41,7 +41,7 @@ func waitForOnlineCommand(cmd *cobra.Command, args []string) error {
 var waitForOnlineCmd = &cobra.Command{
 	Use:   "WaitForOnline",
 	Short: "Wait until the device is accessible",
-	Long: `This command is maybe useful after a reboot or power on. 
+	Long: `This command is maybe useful after a reboot or power on.
 It can be used to wait until the device can handle requests`,
 	RunE: waitForOnlineCommand,
 }

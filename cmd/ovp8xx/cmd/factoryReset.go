@@ -14,7 +14,7 @@ var factoryResetCmd = &cobra.Command{
 	Short: "Performs a factory reset of the device",
 	Long: `Sometime one wants a fresh start.
 
-The command factoryReset resets all settings to their defaults and erases any addtional data like Docker containers.`,
+The command factoryReset resets all settings to their defaults and erases any additional data like Docker containers.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		keepNetworkSettings, err := cmd.Flags().GetBool("keepnetworksettings")
 		if err != nil {
