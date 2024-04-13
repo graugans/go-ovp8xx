@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/graugans/go-ovp8xx/pkg/ovp8xx"
+	"github.com/graugans/go-ovp8xx/v2/pkg/ovp8xx"
 	"github.com/spf13/cobra"
 )
 
