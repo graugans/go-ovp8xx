@@ -9,7 +9,7 @@
 A GO module and cli to access the ifm OVP8xx series of devices.
 
 
-[![GitHub go.mod Go version of a Go module](https://img.shields.io/github/go-mod/go-version/gomods/athens.svg)](https://github.com/gomods/athens)
+[![GitHub go.mod Go version of a Go module](https://img.shields.io/github/go-mod/go-version/graugans/go-ovp8xx.svg)](https://github.com/graugans/go-ovp8xx)
 [![Go Reference](https://pkg.go.dev/badge/github.com/graugans/go-ovp8xx/v2.svg)](https://pkg.go.dev/github.com/graugans/go-ovp8xx/v2)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 ![example workflow](https://github.com/graugans/go-ovp8xx/actions/workflows/go.yml/badge.svg)
