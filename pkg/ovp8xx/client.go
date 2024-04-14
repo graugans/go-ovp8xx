@@ -25,7 +25,7 @@ type (
 // multiple client options.
 // Example usage:
 //
-//	client := NewClient(WithTimeout(10 * time.Second), WithRetry(3))
+//	client := NewClient(WithHost("192.168.47.11"))
 //	// ...
 func NewClient(opts ...ClientOption) *Client {
 	// Initialise with default values

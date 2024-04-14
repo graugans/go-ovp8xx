@@ -20,7 +20,10 @@ func IsTimeoutError(err error) bool {
 // Get retrieves the configuration for the specified pointers from the OVP8xx device.
 // The pointers parameter is a slice of strings that contains the pointers to retrieve the configuration for.
 // The function returns the retrieved configuration as a Config struct and an error if any occurred.
-// Example usage: config, err := device.Get([]string{"/device", "/ports"})
+// Example usage:
+//
+//	config, err := device.Get([]string{"/device", "/ports"})
+//	// ...
 func (device *Client) Get(pointers []string) (Config, error) {
 	client, err := xmlrpc.NewClient(device.url)
 	if err != nil {
