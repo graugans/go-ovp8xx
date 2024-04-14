@@ -2,7 +2,9 @@ package ovp8xx
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"slices"
 	"time"
 )
 
@@ -23,7 +25,7 @@ type (
 // multiple client options.
 // Example usage:
 //
-//	client := NewClient(WithTimeout(10 * time.Second), WithRetry(3))
+//	client := NewClient(WithHost("192.168.47.11"))
 //	// ...
 func NewClient(opts ...ClientOption) *Client {
 	// Initialise with default values
@@ -55,22 +57,77 @@ func (device *Client) GetDiagnosticClient() *DiagnosisClient {
 	return client
 }
 
+// WaitForConfig represents the configuration for waiting for a specific stage.
+type WaitForConfig struct {
+	stage string // The stage to wait for.
+}
+
+// WaitForOption is a function type that is used as an option for configuring the behavior of the WaitFor function.
+// It takes a pointer to a WaitForConfig struct as a parameter and can be used to modify its properties.
+type WaitForOption func(c *WaitForConfig)
+
+// AndPortsAreOnline returns a WaitForOption function that sets the stage to "ports".
+func AndPortsAreOnline() WaitForOption {
+	return func(w *WaitForConfig) {
+		w.stage = "ports"
+	}
+}
+
+// AndAppsAreOnline returns a WaitForOption function that sets the stage to "applications".
+func AndAppsAreOnline() WaitForOption {
+	return func(w *WaitForConfig) {
+		w.stage = "applications"
+	}
+}
+
 // IsAvailable checks if the client is available by making a XML-RPC get request to query the "/device" object.
 // This is useful to wait until a device is ready for communication.
 // It returns a boolean indicating the availability status and an error if any.
 // The function uses a timeout duration to limit the execution time of the request.
-func (d *Client) IsAvailable(timeout time.Duration) (bool, error) {
+// Example usage:
+//
+//	ok, err := device.IsAvailable(time.Duration(timeout) * time.Second, ovp8xx.AndPortsAreOnline())
+//	// ...
+func (d *Client) IsAvailable(timeout time.Duration, opts ...WaitForOption) (bool, error) {
 	var err error
 	proc := make(chan struct{}, 1)
+	conf := *NewConfig()
+
+	waitingFor := &WaitForConfig{
+		stage: "device",
+	}
+
+	// Apply wait options
+	for _, opt := range opts {
+		opt(waitingFor)
+	}
+
+	// result is a struct that represents the response from the OVP8xx device.
+	// It contains information about the device's diagnostic data, such as the configuration initialization stages.
+	result := struct {
+		Device struct {
+			Diagnostic struct {
+				ConfInitStages []string `json:"confInitStages"`
+			} `json:"diagnostic"`
+		} `json:"device"`
+	}{}
 
 	go func() {
 		for {
-			if _, err := d.Get([]string{"/device"}); err != nil {
+			if conf, err = d.Get([]string{"/device/diagnostic/confInitStages"}); err != nil {
 				// In case of an error retry, regardless of an timeout
 				continue
 			}
-			// we are done, the get call was successful
-			proc <- struct{}{}
+			// Unmarshal the data into the result struct
+			if err = json.Unmarshal([]byte(conf.String()), &result); err != nil {
+				// In case of an error retry until the timeout
+				continue
+			}
+			// Check if the device is ready
+			if slices.Contains(result.Device.Diagnostic.ConfInitStages, waitingFor.stage) {
+				// we are done, the get call was successful
+				proc <- struct{}{}
+			}
 		}
 	}()
 
