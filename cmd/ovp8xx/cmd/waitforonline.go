@@ -28,7 +28,11 @@ func waitForOnlineCommand(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if ok, err = o3r.IsAvailable(time.Duration(timeout) * time.Second); err != nil {
+	timeOutDuration := time.Duration(timeout) * time.Second
+	if ok, err = o3r.IsAvailable(
+		timeOutDuration,
+		ovp8xx.AndPortsAreOnline(),
+	); err != nil {
 		return err
 	}
 	if ok {
