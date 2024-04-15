@@ -1,3 +1,9 @@
+/*
+Copyright © 2024 Christian Ege <ch@ege.io>
+
+SPDX-License-Identifier: Apache-2.0
+*/
+
 package ovp8xx
 
 import (
@@ -50,6 +56,7 @@ func (device *Client) Ports() ([]PortInfo, error) {
 		return emptyPorts, fmt.Errorf("unable retrieve the port info from the input: %s; err: %w", conf.String(), err)
 	}
 
+	// Sort the ports, due to the fact the map is not sorted.
 	portNames := make([]string, 0)
 	for key := range info.Ports {
 		portNames = append(portNames, key)
