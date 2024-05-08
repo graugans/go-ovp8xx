@@ -4,9 +4,38 @@ Copyright © 2023 Christian Ege <ch@ege.io>
 package cmd
 
 import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"text/template"
+
 	"github.com/graugans/go-ovp8xx/v2/pkg/ovp8xx"
 	"github.com/spf13/cobra"
 )
+
+// toJSON converts the given object to a JSON string representation.
+// If an error occurs during marshaling, an empty string is returned.
+// This is taken from https://github.com/intel/tfortools
+func toJSON(obj interface{}) string {
+	b, err := json.MarshalIndent(obj, "", "\t")
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
+// prefix can be used to create a list separated by s and the very first
+// element is not prefixed.
+func prefix(s string) func() string {
+	i := -1
+	return func() string {
+		i++
+		if i == 0 {
+			return ""
+		}
+		return s
+	}
+}
 
 func getCommand(cmd *cobra.Command, args []string) error {
 	var result ovp8xx.Config
@@ -23,6 +52,31 @@ func getCommand(cmd *cobra.Command, args []string) error {
 	if result, err = o3r.Get(helper.jsonPointers()); err != nil {
 		return err
 	}
+
+	if cmd.Flags().Changed("format") {
+		format, err := cmd.Flags().GetString("format")
+		if err != nil {
+			return fmt.Errorf("unable to get the format string from the command line: %w", err)
+		}
+		var inputData interface{}
+		if err = json.Unmarshal([]byte(result.String()), &inputData); err != nil {
+			return fmt.Errorf("unable to unmarshal the JSON data from the 'get' call: %w", err)
+		}
+		templateFunctions := template.FuncMap{
+			"toJSON": toJSON,
+			"prefix": prefix,
+		}
+		tmpl, err := template.New("output").Funcs(templateFunctions).Parse(format)
+		if err != nil {
+			return fmt.Errorf("unable to parse the template: %w", err)
+		}
+
+		if err := tmpl.Execute(os.Stdout, inputData); err != nil {
+			return fmt.Errorf("unable to execute the template: %w", err)
+		}
+		return nil
+	}
+
 	if err := helper.printJSONResult(result.String()); err != nil {
 		return err
 	}
@@ -66,4 +120,5 @@ func init() {
 	rootCmd.AddCommand(getCmd)
 	getCmd.Flags().StringSliceP("pointer", "p", []string{""}, "A JSON pointer to be queried")
 	getCmd.Flags().Bool("pretty", false, "Pretty print the JSON received from the device")
+	getCmd.Flags().String("format", "", "Specify an alternative format for the JSON output")
 }
