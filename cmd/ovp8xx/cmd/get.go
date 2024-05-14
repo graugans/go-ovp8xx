@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"text/template"
@@ -54,6 +55,10 @@ func getCommand(cmd *cobra.Command, args []string) error {
 	}
 
 	if cmd.Flags().Changed("format") {
+		if helper.prettyPrint() {
+			return errors.New("you can't use --pretty and --format at the same time")
+		}
+
 		format, err := cmd.Flags().GetString("format")
 		if err != nil {
 			return fmt.Errorf("unable to get the format string from the command line: %w", err)
