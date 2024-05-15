@@ -19,15 +19,21 @@ A GO module and cli to access the ifm OVP8xx series of devices.
 
 This project is still a work in progress and will suffer from breaking API changes. Please be warned. In case you have any suggestions or want to contribute please feel free to open an issue or pull request.
 
-## CLI  Installation
+## CLI
 
-### Pre Build Binaries
+One of the benefits of the Go language is the easy way of producing statically linked binaries to be used on all major platforms. One of the `ovp8xx` core features is the CLI interface. The design tries to stay as close as possible to the XML-RPC API.
+
+With the CLI you can get the configuration from the device and [filter](doc/filter.md) it as you need. After transforming the config it can be written back to the device.
+
+### CLI  Installation
+
+#### Pre Build Binaries
 
 The recommended and easiest way is to download the pre-build binary from the [GitHub Release page](https://github.com/graugans/go-ovp8xx/releases).
 
 ⚠️ The Windows binary maybe flagged by a Virus Scanner, please also read the note from the [Go Team](https://go.dev/doc/faq#virus) ⚠️
 
-### Go get
+#### Go get
 
 If you have a decent Go version installed
 
@@ -35,7 +41,7 @@ If you have a decent Go version installed
 go install github.com/graugans/go-ovp8xx/v2/cmd/ovp8xx@latest
 ```
 
-## API usage
+### API usage
 
 Within in your Go project get the ovp8xx package first
 
