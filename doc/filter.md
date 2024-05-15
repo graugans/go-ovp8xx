@@ -1,10 +1,10 @@
 # Using Go text/template for Advanced Data Filtering
 
-This document demonstrates the usage of the Go text/template package to filter and format the output of the `ovp8xx get` command for manipulating the result data. There ar two custom functions created to enhance the filtering: `prefix` and `toJSON`.
+This document demonstrates the usage of the Go text/template package to filter and format the output of the `ovp8xx get` command for manipulating the result data. There are two custom functions created to enhance the filtering: `prefix` and `toJSON`.
 
 ## The `prefix` Function
 
-The `prefix` function is designed to solve the problem of trailing commas, which are for example not allowed in JSON. The idea is to prefix each line with a comma, except for the very first one. This function is particularly useful when generating JSON output dynamically, where the number of elements may vary.
+The `prefix` function is designed to solve the problem of trailing commas, which are, for example, not allowed in JSON. The idea is to prefix each line with a comma, except for the very first one. This function is particularly useful when generating JSON output dynamically, where the number of elements may vary.
 
 Here's how it's used in the command:
 
