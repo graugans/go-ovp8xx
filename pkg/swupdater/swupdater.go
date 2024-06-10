@@ -1,11 +1,15 @@
 package swupdater
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -13,29 +17,51 @@ import (
 
 type SWUpdater struct {
 	hostName  string
-	port      int
-	path      string
+	port      uint16
 	urlUpload string
 	urlStatus string
-	done      chan error
 }
 
-func NewSWUpdater(hostName, path string, port int) *SWUpdater {
+func NewSWUpdater(hostName string, port uint16) *SWUpdater {
 	return &SWUpdater{
 		hostName:  hostName,
 		port:      port,
-		path:      path,
-		urlUpload: fmt.Sprintf("http://%s:%d%s/upload", hostName, port, path),
-		urlStatus: fmt.Sprintf("ws://%s:%d%s/ws", hostName, port, path),
-		done:      make(chan error),
+		urlUpload: fmt.Sprintf("http://%s:%d/upload", hostName, port),
+		urlStatus: fmt.Sprintf("ws://%s:%d/ws", hostName, port),
 	}
 }
+func (s *SWUpdater) upload(filename string, timeout time.Duration) error {
+	image, err := os.Open(filename)
+	if err != nil {
+		return fmt.Errorf("cannot open file: %w", err)
+	}
+	fmt.Printf("Uploading software image to %s\n", s.urlUpload)
 
-func (s *SWUpdater) upload(image io.Reader, timeout time.Duration) error {
-	req, err := http.NewRequest("POST", s.urlUpload, image)
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	part, err := writer.CreateFormFile("file", filename)
+	if err != nil {
+		return fmt.Errorf("cannot create form file: %w", err)
+	}
+
+	_, err = io.Copy(part, image)
+	if err != nil {
+		return fmt.Errorf("cannot write to form file: %w", err)
+	}
+
+	err = writer.Close()
+	if err != nil {
+		return fmt.Errorf("cannot close multipart writer: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", s.urlUpload, bytes.NewReader(body.Bytes()))
 	if err != nil {
 		return fmt.Errorf("cannot create request: %w", err)
 	}
+
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Content-Length", strconv.Itoa(body.Len()))
 
 	client := &http.Client{Timeout: timeout}
 	resp, err := client.Do(req)
@@ -51,10 +77,10 @@ func (s *SWUpdater) upload(image io.Reader, timeout time.Duration) error {
 	return nil
 }
 
-func (s *SWUpdater) waitForFinished() {
+func (s *SWUpdater) waitForFinished(done chan error) {
 	c, _, err := websocket.DefaultDialer.Dial(s.urlStatus, nil)
 	if err != nil {
-		s.done <- fmt.Errorf("cannot connect to websocket: %w", err)
+		done <- fmt.Errorf("cannot connect to websocket: %w", err)
 		return
 	}
 	defer c.Close()
@@ -62,44 +88,44 @@ func (s *SWUpdater) waitForFinished() {
 	for {
 		_, message, err := c.ReadMessage()
 		if err != nil {
-			s.done <- fmt.Errorf("cannot read message from websocket: %w", err)
+			done <- fmt.Errorf("cannot read message from websocket: %w", err)
 			return
 		}
 
 		data := make(map[string]string)
 		err = json.Unmarshal(message, &data)
 		if err != nil {
-			continue
+			done <- fmt.Errorf("cannot unmarshal message: %w", err)
+			return
 		}
-
+		fmt.Println("Raw JSON: ", data)
 		if data["type"] != "message" {
 			continue
 		}
 
 		if data["text"] == "SWUPDATE successful" {
-			s.done <- nil
+			done <- nil
 			return
 		}
 		if data["text"] == "Installation failed" {
-			s.done <- errors.New("installation failed")
+			done <- errors.New("installation failed")
 			return
 		}
 	}
 }
 
-func (s *SWUpdater) Update(image io.Reader, timeout time.Duration) error {
-	go s.waitForFinished()
-	go func() {
-		err := s.upload(image, timeout)
-		if err != nil {
-			s.done <- err
-		}
-	}()
+func (s *SWUpdater) Update(filename string, timeout time.Duration) error {
+	done := make(chan error)
+	go s.waitForFinished(done)
+	err := s.upload(filename, timeout)
+	if err != nil {
+		return fmt.Errorf("cannot upload software image: %w", err)
+	}
 
 	select {
-	case err := <-s.done:
+	case err := <-done:
 		if err != nil {
-			return err
+			return fmt.Errorf("update failed: %w", err)
 		}
 		return nil
 	case <-time.After(timeout):
