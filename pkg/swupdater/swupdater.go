@@ -9,6 +9,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -40,7 +41,7 @@ func (s *SWUpdater) upload(filename string, timeout time.Duration) error {
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 
-	part, err := writer.CreateFormFile("file", filename)
+	part, err := writer.CreateFormFile("file", filepath.Base(filename))
 	if err != nil {
 		return fmt.Errorf("cannot create form file: %w", err)
 	}
