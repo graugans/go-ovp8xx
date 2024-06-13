@@ -1,28 +1,27 @@
 package swupdater
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"mime/multipart"
 	"net/http"
 	"os"
-	"path/filepath"
-	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/technoweenie/multipartstreamer"
 )
 
+// SWUpdater represents a software updater.
 type SWUpdater struct {
-	hostName  string
-	port      uint16
-	urlUpload string
-	urlStatus string
+	hostName  string // The hostname of the updater.
+	port      uint16 // The port number of the updater.
+	urlUpload string // The URL for uploading software updates.
+	urlStatus string // The URL for checking the status of software updates.
 }
 
+// NewSWUpdater creates a new instance of SWUpdater with the specified host name and port.
 func NewSWUpdater(hostName string, port uint16) *SWUpdater {
 	return &SWUpdater{
 		hostName:  hostName,
@@ -31,53 +30,61 @@ func NewSWUpdater(hostName string, port uint16) *SWUpdater {
 		urlStatus: fmt.Sprintf("ws://%s:%d/ws", hostName, port),
 	}
 }
-func (s *SWUpdater) upload(filename string, timeout time.Duration) error {
-	image, err := os.Open(filename)
+
+// Upload performs the upload of the specified file.
+// The filename parameter specifies the name of the file to be uploaded.
+// Returns an error if the upload fails.
+func (s *SWUpdater) upload(filename string) error {
+	fmt.Printf("Uploading software image to %s\n", s.urlUpload)
+	const fieldname string = "file"
+
+	file, err := os.Open(filename)
 	if err != nil {
 		return fmt.Errorf("cannot open file: %w", err)
 	}
-	fmt.Printf("Uploading software image to %s\n", s.urlUpload)
+	defer file.Close()
 
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
-
-	part, err := writer.CreateFormFile("file", filepath.Base(filename))
+	fileInfo, err := file.Stat()
 	if err != nil {
-		return fmt.Errorf("cannot create form file: %w", err)
+		return fmt.Errorf("cannot get file info: %w", err)
 	}
 
-	_, err = io.Copy(part, image)
-	if err != nil {
-		return fmt.Errorf("cannot write to form file: %w", err)
-	}
+	ms := multipartstreamer.New()
+	ms.WriteReader(fieldname, filename, fileInfo.Size(), file)
 
-	err = writer.Close()
-	if err != nil {
-		return fmt.Errorf("cannot close multipart writer: %w", err)
-	}
+	req, _ := http.NewRequest("POST", s.urlUpload, nil)
+	ms.SetupRequest(req)
 
-	req, err := http.NewRequest("POST", s.urlUpload, bytes.NewReader(body.Bytes()))
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("cannot create request: %w", err)
-	}
-
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-	req.Header.Set("Content-Length", strconv.Itoa(body.Len()))
-
-	client := &http.Client{Timeout: timeout}
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("cannot upload software image: %w", err)
+		return fmt.Errorf("cannot send request: %w", err)
 	}
 	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("cannot upload software image: status code %d", resp.StatusCode)
-	}
-
-	return nil
+	return err
 }
 
+// waitForFinished waits for the SWUpdater process to finish by listening to a WebSocket connection.
+// It continuously reads messages from the WebSocket and checks for specific conditions to determine
+// if the SWUpdater process has completed successfully or has failed.
+//
+// Parameters:
+//   - done: A channel used to signal the completion of the SWUpdater process. If the process finishes
+//     successfully, nil is sent to the channel. If the process fails, an error is sent to the channel.
+//
+// Returns:
+//
+//	None
+//
+// Example usage:
+//
+//	done := make(chan error)
+//	go s.waitForFinished(done)
+//	err := <-done
+//	if err != nil {
+//	  // Handle error
+//	} else {
+//	  // SWUpdater process completed successfully
+//	}
 func (s *SWUpdater) waitForFinished(done chan error) {
 	c, _, err := websocket.DefaultDialer.Dial(s.urlStatus, nil)
 	if err != nil {
@@ -104,21 +111,24 @@ func (s *SWUpdater) waitForFinished(done chan error) {
 			continue
 		}
 
-		if data["text"] == "SWUPDATE successful" {
+		if strings.Contains(data["text"], "SWUPDATE successful") {
 			done <- nil
 			return
 		}
-		if data["text"] == "Installation failed" {
+		if strings.Contains(data["text"], "Installation failed") {
 			done <- errors.New("installation failed")
 			return
 		}
 	}
 }
 
+// Update uploads a software image and waits for the update process to finish.
+// It takes a filename string and a timeout duration as parameters.
+// It returns an error if the upload fails, or if the operation times out.
 func (s *SWUpdater) Update(filename string, timeout time.Duration) error {
 	done := make(chan error)
 	go s.waitForFinished(done)
-	err := s.upload(filename, timeout)
+	err := s.upload(filename)
 	if err != nil {
 		return fmt.Errorf("cannot upload software image: %w", err)
 	}

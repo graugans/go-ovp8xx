@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/graugans/go-ovp8xx/pkg/swupdater"
@@ -33,7 +34,12 @@ func swupdateCommand(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("cannot get timeout: %w", err)
 	}
 
-	fmt.Printf("Updating firmware on %s:%d with file %s (%v)\n", host, port, filename, timeout)
+	fmt.Printf("Updating firmware on %s:%d with file %s (%v)\n",
+		host,
+		port,
+		filepath.Base(filename),
+		timeout,
+	)
 
 	swu := swupdater.NewSWUpdater(host, port)
 
