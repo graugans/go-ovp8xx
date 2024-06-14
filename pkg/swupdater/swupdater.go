@@ -55,7 +55,10 @@ func (s *SWUpdater) upload(filename string) error {
 	}
 
 	ms := multipartstreamer.New()
-	ms.WriteReader(fieldname, filename, fileInfo.Size(), file)
+	err = ms.WriteReader(fieldname, filename, fileInfo.Size(), file)
+	if err != nil {
+		return fmt.Errorf("cannot write reader: %w", err)
+	}
 
 	req, _ := http.NewRequest("POST", s.urlUpload, nil)
 	ms.SetupRequest(req)
