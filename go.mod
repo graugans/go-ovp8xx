@@ -1,4 +1,4 @@
-module github.com/graugans/go-ovp8xx
+module github.com/graugans/go-ovp8xx/v2
 
 go 1.21
 

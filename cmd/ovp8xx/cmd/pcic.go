@@ -6,7 +6,7 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/graugans/go-ovp8xx/pkg/pcic"
+	"github.com/graugans/go-ovp8xx/v2/pkg/pcic"
 	"github.com/spf13/cobra"
 )
 
@@ -22,7 +22,7 @@ type PCICReceiver struct {
 // It takes a pcic.Frame as a parameter.
 func (r *PCICReceiver) Result(frame pcic.Frame) {
 	r.frame = frame
-	fmt.Printf("Framecount: %d\n", r.framecount)
+	fmt.Printf("Frame count: %d\n", r.framecount)
 	r.framecount++
 }
 

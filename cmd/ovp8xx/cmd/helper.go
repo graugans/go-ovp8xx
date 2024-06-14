@@ -17,7 +17,7 @@ type helperConfig struct {
 
 func (c *helperConfig) printJSONResult(data string) error {
 	var message string = data
-	if c.pretty {
+	if c.prettyPrint() {
 		var js json.RawMessage
 		if err := json.Unmarshal([]byte(data), &js); err != nil {
 			return errors.New("malformed json")
@@ -42,6 +42,11 @@ func (c *helperConfig) jsonPointers() []string {
 
 func (c *helperConfig) remotePort() uint16 {
 	return c.port
+}
+
+// prettyPrint returns a boolean value indicating whether the output should be pretty-printed.
+func (c *helperConfig) prettyPrint() bool {
+	return c.pretty
 }
 
 func NewHelper(cmd *cobra.Command) (helperConfig, error) {
