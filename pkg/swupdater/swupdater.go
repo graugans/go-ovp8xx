@@ -15,19 +15,24 @@ import (
 
 // SWUpdater represents a software updater.
 type SWUpdater struct {
-	hostName  string // The hostname of the updater.
-	port      uint16 // The port number of the updater.
-	urlUpload string // The URL for uploading software updates.
-	urlStatus string // The URL for checking the status of software updates.
+	hostName      string                     // The hostname of the updater.
+	port          uint16                     // The port number of the updater.
+	urlUpload     string                     // The URL for uploading software updates.
+	urlStatus     string                     // The URL for checking the status of software updates.
+	notifications chan SWUpdaterNotification // A channel for receiving notifications.
+	ws            *websocket.Conn
 }
 
+type SWUpdaterNotification map[string]string
+
 // NewSWUpdater creates a new instance of SWUpdater with the specified host name and port.
-func NewSWUpdater(hostName string, port uint16) *SWUpdater {
+func NewSWUpdater(hostName string, port uint16, notifications chan SWUpdaterNotification) *SWUpdater {
 	return &SWUpdater{
-		hostName:  hostName,
-		port:      port,
-		urlUpload: fmt.Sprintf("http://%s:%d/upload", hostName, port),
-		urlStatus: fmt.Sprintf("ws://%s:%d/ws", hostName, port),
+		hostName:      hostName,
+		port:          port,
+		urlUpload:     fmt.Sprintf("http://%s:%d/upload", hostName, port),
+		urlStatus:     fmt.Sprintf("ws://%s:%d/ws", hostName, port),
+		notifications: notifications,
 	}
 }
 
@@ -35,7 +40,7 @@ func NewSWUpdater(hostName string, port uint16) *SWUpdater {
 // The filename parameter specifies the name of the file to be uploaded.
 // Returns an error if the upload fails.
 func (s *SWUpdater) upload(filename string) error {
-	fmt.Printf("Uploading software image to %s\n", s.urlUpload)
+	s.statusUpdate(fmt.Sprintf("Uploading software image to %s\n", s.urlUpload))
 	const fieldname string = "file"
 
 	file, err := os.Open(filename)
@@ -86,31 +91,27 @@ func (s *SWUpdater) upload(filename string) error {
 //	  // SWUpdater process completed successfully
 //	}
 func (s *SWUpdater) waitForFinished(done chan error) {
-	c, _, err := websocket.DefaultDialer.Dial(s.urlStatus, nil)
-	if err != nil {
-		done <- fmt.Errorf("cannot connect to websocket: %w", err)
-		return
-	}
-	defer c.Close()
 
 	for {
-		_, message, err := c.ReadMessage()
+		_, message, err := s.ws.ReadMessage()
 		if err != nil {
 			done <- fmt.Errorf("cannot read message from websocket: %w", err)
 			return
 		}
 
-		data := make(map[string]string)
+		data := make(SWUpdaterNotification)
 		err = json.Unmarshal(message, &data)
 		if err != nil {
 			done <- fmt.Errorf("cannot unmarshal message: %w", err)
 			return
 		}
-		fmt.Println("Raw JSON: ", data)
+		// Send notification to channel
+		if s.notifications != nil {
+			s.notifications <- data
+		}
 		if data["type"] != "message" {
 			continue
 		}
-
 		if strings.Contains(data["text"], "SWUPDATE successful") {
 			done <- nil
 			return
@@ -122,11 +123,52 @@ func (s *SWUpdater) waitForFinished(done chan error) {
 	}
 }
 
+func (s *SWUpdater) connect() error {
+	var err error
+	s.ws, _, err = websocket.DefaultDialer.Dial(s.urlStatus, nil)
+	if err != nil {
+		return fmt.Errorf("unable to connect to the status socket: %w", err)
+	}
+	return err
+}
+
+func (s *SWUpdater) disconnect() {
+	s.ws.Close()
+}
+
+// statusUpdate updates the status of the SWUpdater.
+// It sends a notification to the channel with the provided status.
+func (s *SWUpdater) statusUpdate(status string) {
+	notification := make(SWUpdaterNotification)
+	notification["swupdater"] = status
+	// Send notification to channel
+	if s.notifications != nil {
+		s.notifications <- notification
+	}
+}
+
 // Update uploads a software image and waits for the update process to finish.
 // It takes a filename string and a timeout duration as parameters.
 // It returns an error if the upload fails, or if the operation times out.
-func (s *SWUpdater) Update(filename string, timeout time.Duration) error {
+func (s *SWUpdater) Update(filename string, connectionTimeout, timeout time.Duration) error {
 	done := make(chan error)
+	start := time.Now()
+	s.statusUpdate("Waiting for the Device to become ready...")
+	// Retry connection until successful or connectionTimeout occurs
+	for {
+		err := s.connect()
+		if err == nil {
+			s.statusUpdate("Device is ready now")
+			break
+		}
+		if time.Since(start) > connectionTimeout {
+			return fmt.Errorf("connection timeout: %w", err)
+		}
+		time.Sleep(3 * time.Second) // wait for a second before retrying
+	}
+	defer s.disconnect()
+
+	s.statusUpdate("Starting the Software Update process...")
 	go s.waitForFinished(done)
 	err := s.upload(filename)
 	if err != nil {
@@ -140,6 +182,6 @@ func (s *SWUpdater) Update(filename string, timeout time.Duration) error {
 		}
 		return nil
 	case <-time.After(timeout):
-		return errors.New("timeout")
+		return errors.New("a timeout occurred while waiting for the update to finish")
 	}
 }
