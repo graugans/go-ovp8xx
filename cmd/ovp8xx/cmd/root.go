@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/graugans/go-ovp8xx/pkg/ovp8xx"
+	"github.com/graugans/go-ovp8xx/v2/pkg/ovp8xx"
 	"github.com/spf13/cobra"
 )
 
+// SetVersionInfo sets the version information for the root command.
+// It formats the version, commit, and date into a string and assigns it to the rootCmd.Version variable.
 func SetVersionInfo(version, commit, date string) {
 	rootCmd.Version = fmt.Sprintf("%s (Built on %s from Git SHA %s)", version, date, commit)
 }
@@ -33,4 +35,5 @@ func Execute() {
 
 func init() {
 	rootCmd.PersistentFlags().String("ip", ovp8xx.GetEnv("OVP8XX_IP", "192.168.0.69"), "The IP address or hostname of the OVP8XX. If not provided the default will be taken from the environment variable OVP8XX_IP")
+
 }

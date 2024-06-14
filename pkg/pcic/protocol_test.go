@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/graugans/go-ovp8xx/pkg/pcic"
+	"github.com/graugans/go-ovp8xx/v2/pkg/pcic"
 	"github.com/stretchr/testify/assert"
 )
 

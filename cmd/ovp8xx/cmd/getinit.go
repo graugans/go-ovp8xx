@@ -4,7 +4,7 @@ Copyright © 2023 Christian Ege <ch@ege.io>
 package cmd
 
 import (
-	"github.com/graugans/go-ovp8xx/pkg/ovp8xx"
+	"github.com/graugans/go-ovp8xx/v2/pkg/ovp8xx"
 	"github.com/spf13/cobra"
 )
 
@@ -36,7 +36,7 @@ var getInitCmd = &cobra.Command{
 	Long: `The OVP8xx provides a way to store a configuration on the device
 
 NOTE: This shall be used with care, because it may lead to an system which is no
-longer useable when the expectation from the safed configuration is no longer met.`,
+longer useable when the expectation from the saved configuration is no longer met.`,
 	RunE: getInitCommand,
 }
 
