@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/graugans/go-ovp8xx/pkg/swupdater"
+	"github.com/graugans/go-ovp8xx/v2/pkg/swupdater"
 	"github.com/spf13/cobra"
 )
 
