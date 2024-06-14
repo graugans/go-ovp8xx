@@ -180,6 +180,7 @@ func (s *SWUpdater) Update(filename string, connectionTimeout, timeout time.Dura
 
 	select {
 	case err := <-done:
+		close(s.notifications) // Close the channel to signal the end of notifications
 		if err != nil {
 			return fmt.Errorf("update failed: %w", err)
 		}

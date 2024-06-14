@@ -6,6 +6,7 @@ package cmd
 import (
 	"fmt"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/graugans/go-ovp8xx/pkg/swupdater"
@@ -24,10 +25,11 @@ func swupdateCommand(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("cannot get port: %w", err)
 	}
 
-	filename, err := cmd.Flags().GetString("file")
-	if err != nil {
-		return fmt.Errorf("cannot get filename: %w", err)
+	// Check if filename is provided as a positional argument
+	if len(args) < 1 {
+		return fmt.Errorf("no filename provided")
 	}
+	filename := args[0]
 
 	timeout, err := cmd.Flags().GetDuration("timeout")
 	if err != nil {
@@ -50,6 +52,9 @@ func swupdateCommand(cmd *cobra.Command, args []string) error {
 	// It has a buffer size of 10 to allow for asynchronous processing.
 	notifications := make(chan swupdater.SWUpdaterNotification, 10)
 
+	var wg sync.WaitGroup
+	wg.Add(1)
+
 	// Print the messages as they come
 	go func() {
 		for n := range notifications {
@@ -59,7 +64,9 @@ func swupdateCommand(cmd *cobra.Command, args []string) error {
 			if value, ok := n["text"]; ok && n["type"] == "message" {
 				fmt.Println(value)
 			}
+
 		}
+		wg.Done() // Decrease counter when goroutine completes
 	}()
 
 	// Create a new SWUpdater instance with the specified host, port, and notifications.
@@ -70,19 +77,25 @@ func swupdateCommand(cmd *cobra.Command, args []string) error {
 	); err != nil {
 		return fmt.Errorf("software update failed: %w", err)
 	}
+
+	wg.Wait() // Wait for all goroutines to finish
 	return nil
 }
 
 // swupdateCmd represents the swupdate command
 var swupdateCmd = &cobra.Command{
-	Use:   "swupdate",
+	Use:   "swupdate [filename]",
 	Short: "Update the firmware on the device",
-	RunE:  swupdateCommand,
+	Long: `The swupdate command is used to update the firmware on the device.
+
+It takes a filename as a positional argument, which is the path to the firmware file to be uploaded.
+
+The command establishes a connection to the device, uploads the firmware file, and waits for the update process to complete.`,
+	RunE: swupdateCommand,
 }
 
 func init() {
 	rootCmd.AddCommand(swupdateCmd)
-	swupdateCmd.Flags().String("file", "", "A file conatining the firmware image")
 	swupdateCmd.Flags().Uint16("port", 8080, "Port number for SWUpdate")
 	swupdateCmd.Flags().Duration("timeout", 5*time.Minute, "The timeout for the upload")
 	swupdateCmd.Flags().Duration("online", 2*time.Minute, "The time to wait for the device to become available")
