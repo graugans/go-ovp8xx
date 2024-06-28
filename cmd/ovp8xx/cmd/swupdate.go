@@ -94,9 +94,60 @@ The command establishes a connection to the device, uploads the firmware file, a
 	RunE: swupdateCommand,
 }
 
+// restartCmd represents the restart command.
+// It restarts the device using the SWUpdater service.
+// Depending on the state of the device, this command will either reboot to productive mode
+// or restart the SWUpdater service again.
+// If a previous update was initiated but not successful, the device will restart the SWUpdater service again.
+var restartCmd = &cobra.Command{
+	Use:   "restart",
+	Short: "Restart the device",
+	Long: `This command restarts the device using the SWUpdater service.
+Depending on the state of the device this will reboot to productive mode
+or restart the SWUpdater service again.
+
+In case a previous update was initiated but not successful the device will restart
+the SWUpdater service again.
+`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		// Retrieve host and port from the parent command's flags
+		host, err := rootCmd.PersistentFlags().GetString("ip")
+		if err != nil {
+			return fmt.Errorf("cannot get host: %w", err)
+		}
+
+		port, err := cmd.Parent().Flags().GetUint16("port")
+		if err != nil {
+			// If the port is not set on the parent, use a default value or handle the error
+			return fmt.Errorf("cannot get port: %w", err)
+		}
+
+		connectionTimeout, err := cmd.Flags().GetDuration("online")
+		if err != nil {
+			return fmt.Errorf("cannot get timeout: %w", err)
+		}
+
+		updater := swupdater.NewSWUpdater(host, port, nil)
+
+		// Call the Restart method on the SWUpdater instance
+		if err := updater.Restart(connectionTimeout); err != nil {
+			return fmt.Errorf("failed to restart the device: %w", err)
+		}
+
+		fmt.Println("Device restart initiated successfully.")
+		return nil
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(swupdateCmd)
-	swupdateCmd.Flags().Uint16("port", 8080, "Port number for SWUpdate")
-	swupdateCmd.Flags().Duration("timeout", 5*time.Minute, "The timeout for the upload")
+
+	swupdateCmd.PersistentFlags().Uint16("port", 8080, "Port number for SWUpdate")
+	swupdateCmd.PersistentFlags().Duration("online", 2*time.Minute, "The time to wait for the device to become available")
 	swupdateCmd.Flags().Duration("online", 2*time.Minute, "The time to wait for the device to become available")
+	swupdateCmd.Flags().Duration("timeout", 5*time.Minute, "The timeout for the upload")
+
+	// The restart sub command
+	swupdateCmd.AddCommand(restartCmd)
+	restartCmd.Flags().Duration("online", 3*time.Second, "The time to wait for the device to become available")
 }
