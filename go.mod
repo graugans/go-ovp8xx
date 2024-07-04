@@ -1,6 +1,6 @@
 module github.com/graugans/go-ovp8xx/v2
 
-go 1.21
+go 1.22
 
 require (
 	alexejk.io/go-xmlrpc v0.4.0
