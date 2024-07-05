@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/graugans/go-ovp8xx/v2/pkg/pcic"
 	"github.com/spf13/cobra"
@@ -40,6 +41,10 @@ func (r *PCICReceiver) Notification(msg pcic.NotificationMessage) {
 	fmt.Printf("Notification: %v\n", msg)
 }
 
+func (r *PCICReceiver) CommandResponse(rsp pcic.Response) {
+	fmt.Printf("Command Response Ticket: %v Data: %s\n", rsp.Ticket, string(rsp.Data))
+}
+
 // pcicCommand is a function that handles the execution of the "pcic" command.
 // It initializes a PCICReceiver, creates a helper, and establishes a connection to the PCIC client.
 // It then continuously processes incoming data using the PCIC client and the testHandler.
@@ -48,6 +53,14 @@ func (r *PCICReceiver) Notification(msg pcic.NotificationMessage) {
 func pcicCommand(cmd *cobra.Command, args []string) error {
 	var testHandler *PCICReceiver = &PCICReceiver{}
 	var err error
+
+	// Retrieve the slice of commands
+	cmds, err := cmd.Flags().GetStringSlice("cmd")
+	if err != nil {
+		// Handle the error
+		return err
+	}
+
 	helper, err := NewHelper(cmd)
 	if err != nil {
 		return err
@@ -56,16 +69,28 @@ func pcicCommand(cmd *cobra.Command, args []string) error {
 	pcic, err := pcic.NewPCICClient(
 		pcic.WithTCPClient(helper.hostname(), helper.remotePort()),
 	)
-	if err != nil {
-		return err
-	}
-	for {
-		err = pcic.ProcessIncomming(testHandler)
+	var wg sync.WaitGroup
+	wg.Add(1) // We're going to wait for one goroutine
+
+	go func() {
+		defer wg.Done() // This will be called when the goroutine finishes
+		for {
+			err = pcic.ProcessIncomming(testHandler)
+			if err != nil {
+				// An error occured, we break the loop
+				break
+			}
+		}
+	}()
+	// execute the commands
+	for _, cmd := range cmds {
+		_, err = pcic.Send([]byte(cmd))
 		if err != nil {
-			// An error occured, we break the loop
-			break
+			return fmt.Errorf("failed to send command: %w", err)
 		}
 	}
+	// Wait for the goroutine to finish before executing the commands
+	wg.Wait()
 	return err
 }
 
@@ -79,4 +104,5 @@ var pcicCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(pcicCmd)
 	pcicCmd.Flags().Uint16("port", 50010, "The port to connect to")
+	pcicCmd.Flags().StringSlice("cmd", []string{}, "Commands to send to the device")
 }
