@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -40,7 +41,10 @@ func NewSWUpdater(hostName string, port uint16, notifications chan SWUpdaterNoti
 // The filename parameter specifies the name of the file to be uploaded.
 // Returns an error if the upload fails.
 func (s *SWUpdater) upload(filename string) error {
-	s.statusUpdate(fmt.Sprintf("Uploading software image to %s\n", s.urlUpload))
+	basename := filepath.Base(filename)
+	s.statusUpdate(
+		fmt.Sprintf("Uploading software image: %s to %s\n", basename, s.urlUpload),
+	)
 	const fieldname string = "file"
 
 	file, err := os.Open(filename)
@@ -155,25 +159,17 @@ func (s *SWUpdater) statusUpdate(status string) {
 // It returns an error if the upload fails, or if the operation times out.
 func (s *SWUpdater) Update(filename string, connectionTimeout, timeout time.Duration) error {
 	done := make(chan error)
-	start := time.Now()
-	s.statusUpdate("Waiting for the Device to become ready...")
 	// Retry connection until successful or connectionTimeout occurs
-	for {
-		err := s.connect()
-		if err == nil {
-			s.statusUpdate("Device is ready now")
-			break
-		}
-		if time.Since(start) > connectionTimeout {
-			return fmt.Errorf("connection timeout: %w", err)
-		}
-		time.Sleep(3 * time.Second) // wait for a second before retrying
+	online, err := s.waitForOnline(connectionTimeout)
+	if !online {
+		return err
 	}
+	// close the websocket after the Update operation
 	defer s.disconnect()
 
 	s.statusUpdate("Starting the Software Update process...")
 	go s.waitForFinished(done)
-	err := s.upload(filename)
+	err = s.upload(filename)
 	if err != nil {
 		return fmt.Errorf("cannot upload software image: %w", err)
 	}
@@ -188,4 +184,60 @@ func (s *SWUpdater) Update(filename string, connectionTimeout, timeout time.Dura
 	case <-time.After(timeout):
 		return errors.New("a timeout occurred while waiting for the update to finish")
 	}
+}
+
+func (s *SWUpdater) waitForOnline(connectionTimeout time.Duration) (bool, error) {
+	start := time.Now()
+	s.statusUpdate("Waiting for the Device to become ready...")
+
+	for {
+		err := s.connect()
+		if err == nil {
+			s.statusUpdate("Device is ready now")
+			break
+		}
+		if time.Since(start) > connectionTimeout {
+			return false, fmt.Errorf("connection timeout: %w", err)
+		}
+		// Retry after 3 seconds
+		time.Sleep(3 * time.Second)
+	}
+	return true, nil
+}
+
+// Restart reboots the device by sending a POST request to the restart endpoint.
+func (s *SWUpdater) Restart(timeout time.Duration) error {
+	// Construct the URL for the restart endpoint
+	restartURL := fmt.Sprintf("http://%s:%d/restart", s.hostName, s.port)
+
+	online, err := s.waitForOnline(timeout)
+	if !online {
+		return err
+	}
+	// close the websocket after the Restart operation
+	defer s.disconnect()
+
+	// Create a POST request with an empty body
+	req, err := http.NewRequest("POST", restartURL, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request (%s): %w", restartURL, err)
+	}
+
+	// Send the request
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send restart request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusServiceUnavailable {
+		return fmt.Errorf("the SWUpdate service is not available at the moment, please try again later")
+	}
+
+	// Check if the response status code indicates success
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("restart request (%s) failed with status code: %d", restartURL, resp.StatusCode)
+	}
+
+	return nil
 }
