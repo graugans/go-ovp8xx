@@ -3,6 +3,7 @@ package pcic
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -10,12 +11,17 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 type (
 	PCICClient struct {
-		reader *bufio.Reader
-		writer *bufio.Writer
+		reader        *bufio.Reader
+		writer        *bufio.Writer
+		responseChans map[string]chan Response
+		ticketSet     map[string]struct{}
+
+		mu sync.Mutex
 	}
 	PCICClientOption func(c *PCICClient) error
 )
@@ -50,7 +56,6 @@ type MessageHandler interface {
 	Result(Frame)
 	Error(ErrorMessage)
 	Notification(NotificationMessage)
-	CommandResponse(Response)
 }
 
 type NotificationMessage struct {
@@ -103,6 +108,19 @@ func WithTCPClient(hostname string, port uint16) PCICClientOption {
 	}
 }
 
+func (p *PCICClient) generateTicket() string {
+	for {
+		ticket := fmt.Sprintf("%04d", rand.Intn(8999)+1000)
+		p.mu.Lock()
+		if _, exists := p.ticketSet[ticket]; !exists {
+			p.ticketSet[ticket] = struct{}{}
+			p.mu.Unlock()
+			return ticket
+		}
+		p.mu.Unlock()
+	}
+}
+
 func (p *PCICClient) ProcessIncomming(handler MessageHandler) error {
 	reader := p.reader
 	if reader == nil {
@@ -151,11 +169,10 @@ func (p *PCICClient) ProcessIncomming(handler MessageHandler) error {
 		}
 	}
 	if ticketNum > 100 {
-		r, err := responseParser(ticketStr, data)
+		err := p.responseParser(ticketStr, data)
 		if err != nil {
 			return fmt.Errorf("unable to parse the response: %w", err)
 		}
-		handler.CommandResponse(r)
 		return nil
 	} else if bytes.Equal(resultTicket, firstTicket) {
 		frame, err := asyncResultParser(data)
@@ -169,18 +186,25 @@ func (p *PCICClient) ProcessIncomming(handler MessageHandler) error {
 	return fmt.Errorf("unknown ticket received: %s", string(firstTicket))
 }
 
-func (p *PCICClient) Send(data []byte) (uint16, error) {
-	var ticket uint16
+func (p *PCICClient) Send(ctx context.Context, data []byte) ([]byte, error) {
+	var res []byte
 	if p.writer == nil {
-		return ticket, errors.New("no bufio.Writer provided, please instantiate the object")
+		return res, errors.New("no bufio.Writer provided, please instantiate the object")
 	}
 	// Let's generate a random ticket number
-	ticket = uint16(rand.Intn(8999) + 1000)
-	if ticket < 100 || ticket > 9999 {
-		return ticket, fmt.Errorf(
-			"invalid ticket number: %d, needs to be in the range 100-9999", ticket,
-		)
-	}
+	ticket := p.generateTicket()
+
+	respChan := make(chan Response)
+	p.mu.Lock()
+	p.responseChans[ticket] = respChan
+	p.mu.Unlock()
+
+	defer func() {
+		p.mu.Lock()
+		delete(p.responseChans, ticket)
+		delete(p.ticketSet, ticket)
+		p.mu.Unlock()
+	}()
 
 	// Create a new buffer to aggregate the message
 	var buf bytes.Buffer
@@ -206,27 +230,41 @@ func (p *PCICClient) Send(data []byte) (uint16, error) {
 	// Write the buffer to the underlying writer
 	_, err := p.writer.Write(buf.Bytes())
 	if err != nil {
-		return ticket, fmt.Errorf("unable to write to the buffer: %w", err)
+		return res, fmt.Errorf("unable to write to the buffer: %w", err)
 	}
 	// This is necessary to flush the buffer to the underlying writer
 	// Otherwise, the data will not be sent over the network
 	err = p.writer.Flush()
 	if err != nil {
-		return ticket, fmt.Errorf("unable to flush to the buffer: %w", err)
+		return res, fmt.Errorf("unable to flush to the buffer: %w", err)
 	}
 
-	return ticket, nil
+	// Wait for the response or timeout
+	select {
+	case resp := <-respChan:
+		res = resp.Data
+	case <-ctx.Done():
+		return res, fmt.Errorf("request with ticket: %s timed out or canceled", ticket)
+	}
+
+	return res, nil
 }
 
-func responseParser(ticket string, data []byte) (Response, error) {
+func (p *PCICClient) responseParser(ticket string, data []byte) error {
 	var err error
 	res := Response{}
 	if len(data) <= delimiterFieldLength {
-		return res, fmt.Errorf("the data is too short to be a valid frame: %d", len(data))
+		return fmt.Errorf("the data is too short to be a valid frame: %d", len(data))
 	}
 	res.Ticket = ticket
 	res.Data = data[:len(data)-delimiterFieldLength]
-	return res, err
+
+	p.mu.Lock()
+	if ch, ok := p.responseChans[ticket]; ok {
+		ch <- res
+	}
+	p.mu.Unlock()
+	return err
 }
 
 func errorParser(data []byte) (ErrorMessage, error) {
