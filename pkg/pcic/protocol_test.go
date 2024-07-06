@@ -23,7 +23,6 @@ type PCICAsyncReceiver struct {
 	frame           pcic.Frame
 	notificationMsg pcic.NotificationMessage
 	errorMsg        pcic.ErrorMessage
-	response        pcic.Response
 }
 
 func (r *PCICAsyncReceiver) Result(frame pcic.Frame) {
@@ -36,10 +35,6 @@ func (r *PCICAsyncReceiver) Error(msg pcic.ErrorMessage) {
 
 func (r *PCICAsyncReceiver) Notification(msg pcic.NotificationMessage) {
 	r.notificationMsg = msg
-}
-
-func (r *PCICAsyncReceiver) CommandResponse(res pcic.Response) {
-	r.response = res
 }
 
 var testHandler *PCICAsyncReceiver = &PCICAsyncReceiver{}

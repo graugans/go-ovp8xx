@@ -4,8 +4,11 @@ Copyright © 2024 Christian Ege <ch@ege.io>
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"strconv"
 	"sync"
+	"time"
 
 	"github.com/graugans/go-ovp8xx/v2/pkg/pcic"
 	"github.com/spf13/cobra"
@@ -39,10 +42,6 @@ func (r *PCICReceiver) Error(msg pcic.ErrorMessage) {
 func (r *PCICReceiver) Notification(msg pcic.NotificationMessage) {
 	r.notificationMsg = msg
 	fmt.Printf("Notification: %v\n", msg)
-}
-
-func (r *PCICReceiver) CommandResponse(rsp pcic.Response) {
-	fmt.Printf("Command Response Ticket: %v Data: %s\n", rsp.Ticket, string(rsp.Data))
 }
 
 // pcicCommand is a function that handles the execution of the "pcic" command.
@@ -82,14 +81,38 @@ func pcicCommand(cmd *cobra.Command, args []string) error {
 			}
 		}
 	}()
+
 	// execute the commands
 	for _, cmd := range cmds {
-		_, err = pcic.Send([]byte(cmd))
+		prefix := fmt.Sprintf(" %s # ", cmd)
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		response, err := pcic.Send(ctx, []byte(cmd))
 		if err != nil {
-			return fmt.Errorf("failed to send command: %w", err)
+			cancel()
+			return fmt.Errorf("failed to send command: %v", err)
+
 		}
+		if len(response) >= 9 { // Ensure there are at least 9 bytes
+			lengthStr := string(response[:9])      // Convert the first 9 bytes to a string
+			length, err := strconv.Atoi(lengthStr) // Convert the string to an integer
+			if err != nil {
+				// Response does not start with the length, print the whole response
+				fmt.Println(prefix, (response))
+			} else {
+				if len(response) >= 9+length {
+					// Strip the first 9 bytes and print the rest up to the specified length
+					fmt.Println(string(response[9 : 9+length]))
+				} else {
+					cancel()
+					return fmt.Errorf("response too short: %s", string(response))
+				}
+			}
+		} else {
+			fmt.Println(prefix, string(response))
+		}
+		cancel()
 	}
-	// Wait for the goroutine to finish before executing the commands
+	// Wait for the goroutine to be finished
 	wg.Wait()
 	return err
 }
@@ -104,5 +127,5 @@ var pcicCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(pcicCmd)
 	pcicCmd.Flags().Uint16("port", 50010, "The port to connect to")
-	pcicCmd.Flags().StringSlice("cmd", []string{}, "Commands to send to the device")
+	pcicCmd.Flags().StringSlice("cmd", []string{}, "Commands to be send to the device, can be specified multiple times. All commands will be executed in order")
 }
