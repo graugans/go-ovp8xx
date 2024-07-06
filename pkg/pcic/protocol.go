@@ -19,9 +19,7 @@ type (
 		reader        *bufio.Reader
 		writer        *bufio.Writer
 		responseChans map[string]chan Response
-		ticketSet     map[string]struct{}
-
-		mu sync.Mutex
+		mu            sync.Mutex
 	}
 	PCICClientOption func(c *PCICClient) error
 )
@@ -108,12 +106,16 @@ func WithTCPClient(hostname string, port uint16) PCICClientOption {
 	}
 }
 
-func (p *PCICClient) generateTicket() string {
+// generateTicket generates a unique ticket and associates it with the provided reply channel.
+// It uses a random number generator to generate a 4-digit ticket number.
+// If the generated ticket already exists in the responseChans map, it continues generating a new ticket until a unique one is found.
+// Once a unique ticket is found, it adds the ticket and reply channel to the responseChans map and returns the ticket.
+func (p *PCICClient) generateTicket(replyChan chan Response) string {
 	for {
 		ticket := fmt.Sprintf("%04d", rand.Intn(8999)+1000)
 		p.mu.Lock()
-		if _, exists := p.ticketSet[ticket]; !exists {
-			p.ticketSet[ticket] = struct{}{}
+		if _, exists := p.responseChans[ticket]; !exists {
+			p.responseChans[ticket] = replyChan
 			p.mu.Unlock()
 			return ticket
 		}
@@ -191,18 +193,13 @@ func (p *PCICClient) Send(ctx context.Context, data []byte) ([]byte, error) {
 	if p.writer == nil {
 		return res, errors.New("no bufio.Writer provided, please instantiate the object")
 	}
-	// Let's generate a random ticket number
-	ticket := p.generateTicket()
-
 	respChan := make(chan Response)
-	p.mu.Lock()
-	p.responseChans[ticket] = respChan
-	p.mu.Unlock()
+	// Let's generate a random ticket number
+	ticket := p.generateTicket(respChan)
 
 	defer func() {
 		p.mu.Lock()
 		delete(p.responseChans, ticket)
-		delete(p.ticketSet, ticket)
 		p.mu.Unlock()
 	}()
 
@@ -210,7 +207,7 @@ func (p *PCICClient) Send(ctx context.Context, data []byte) ([]byte, error) {
 	var buf bytes.Buffer
 	var delimter = []byte("\r\n")
 	// Convert ticket to a 4-digit string and then to bytes
-	ticketBytes := []byte(fmt.Sprintf("%04d", ticket))
+	ticketBytes := []byte(ticket)
 	buf.Write(ticketBytes)
 	// A Command message is composed like this
 	// <ticket><length>CRLF<ticket><content>CRLF
