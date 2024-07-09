@@ -73,7 +73,10 @@ type Response struct {
 
 func NewPCICClient(options ...PCICClientOption) (*PCICClient, error) {
 	var err error
-	pcic := &PCICClient{}
+	pcic := &PCICClient{
+		responseChans: make(map[string]chan Response),
+	}
+
 	// Apply options
 	for _, opt := range options {
 		if err = opt(pcic); err != nil {
