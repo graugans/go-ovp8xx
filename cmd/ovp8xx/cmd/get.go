@@ -50,7 +50,7 @@ func getCommand(cmd *cobra.Command, args []string) error {
 		ovp8xx.WithHost(helper.hostname()),
 	)
 
-	if result, err = o3r.Get(helper.jsonPointers()); err != nil {
+	if result, err = o3r.Get(args); err != nil {
 		return err
 	}
 
@@ -90,7 +90,7 @@ func getCommand(cmd *cobra.Command, args []string) error {
 
 // getCmd represents the get command
 var getCmd = &cobra.Command{
-	Use:   "get",
+	Use:   "get <pointers>",
 	Short: "Retrieve the JSON configuration from the device",
 	Long: `The OVP8xx get call accepts a list of JSON pointer like queries.
 Valid queries are for example:

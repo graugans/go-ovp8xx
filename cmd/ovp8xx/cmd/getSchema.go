@@ -19,7 +19,7 @@ func getSchemaCommand(cmd *cobra.Command, args []string) error {
 		ovp8xx.WithHost(helper.hostname()),
 	)
 
-	if result, err = o3r.GetSchema(helper.jsonPointers()); err != nil {
+	if result, err = o3r.GetSchema(args); err != nil {
 		return err
 	}
 
@@ -31,7 +31,7 @@ func getSchemaCommand(cmd *cobra.Command, args []string) error {
 
 // getCmd represents the get command
 var getSchemaCmd = &cobra.Command{
-	Use:   "getSchema",
+	Use:   "getSchema [pointers]",
 	Short: "Retrieve the currently used JSON schema from the device",
 	Long: `The OVP8xx getSchema command accepts a list of JSON pointers.
 The JSON schema provides details about multiple aspects of a parameter. It
