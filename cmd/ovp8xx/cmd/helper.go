@@ -9,10 +9,9 @@ import (
 )
 
 type helperConfig struct {
-	pretty   bool
-	host     string
-	port     uint16
-	pointers []string
+	pretty bool
+	host   string
+	port   uint16
 }
 
 func (c *helperConfig) printJSONResult(data string) error {
