@@ -90,7 +90,7 @@ func getCommand(cmd *cobra.Command, args []string) error {
 
 // getCmd represents the get command
 var getCmd = &cobra.Command{
-	Use:   "get <pointers>",
+	Use:   "get [pointers...]",
 	Short: "Retrieve the JSON configuration from the device",
 	Long: `The OVP8xx get call accepts a list of JSON pointer like queries.
 Valid queries are for example:
