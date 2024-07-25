@@ -171,6 +171,27 @@ func (device *Client) RebootToSWUpdate() error {
 	return client.Call("rebootToRecovery", nil, nil)
 }
 
+// Remove does remove an element from the device temporary configuration.
+// The scope of this method is limited to the following regular expressions:
+// - ^\/applications\/instances\/app\d+$
+// - ^\/device\/log\/components\/[a-zA-Z0-9\-_]+$
+// - ^\/applications\/instances\/app\d+/presets/\d+$
+//
+// If an error occurs during the connection or the method call, it is returned.
+func (device *Client) Remove(pointer string) error {
+	client, err := xmlrpc.NewClient(device.url)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	arg := &struct {
+		Pointer string
+	}{Pointer: pointer}
+
+	return client.Call("remove", arg, nil)
+}
+
 // GetFiltered retrieves a filtered configuration from the DiagnosisClient.
 // It takes a Config object as input and returns a Config object and an error.
 func (device *DiagnosisClient) GetFiltered(conf Config) (Config, error) {

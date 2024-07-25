@@ -2,7 +2,8 @@
 
 # install missing packages
 sudo apt-get update &&
-    sudo apt-get install -q -y git-lfs \
+    sudo apt-get install -q -y \
+        git-lfs \
         python3-pip \
         python3-venv \
         shfmt \
