@@ -9,6 +9,7 @@ import (
 	"io"
 	"math/rand"
 	"net"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -20,6 +21,7 @@ type (
 		writer        *bufio.Writer
 		responseChans map[string]chan Response
 		mu            sync.Mutex
+		errRegEx      *regexp.Regexp
 	}
 	PCICClientOption func(c *PCICClient) error
 )
@@ -76,7 +78,10 @@ func NewPCICClient(options ...PCICClientOption) (*PCICClient, error) {
 	pcic := &PCICClient{
 		responseChans: make(map[string]chan Response),
 	}
-
+	pcic.errRegEx, err = regexp.Compile(`(\d{9})(?::(.*))?`)
+	if err != nil {
+		return nil, fmt.Errorf("unable to compile the error regex: %v", err)
+	}
 	// Apply options
 	for _, opt := range options {
 		if err = opt(pcic); err != nil {
@@ -184,7 +189,7 @@ func (p *PCICClient) ProcessIncomming(handler MessageHandler) error {
 		handler.Result(frame)
 		return err
 	} else if bytes.Equal(errorTicket, firstTicket) {
-		errorStatus, err := errorParser(data)
+		errorStatus, err := p.errorParser(string(data))
 		handler.Error(errorStatus)
 		return err
 	}
@@ -267,17 +272,26 @@ func (p *PCICClient) responseParser(ticket string, data []byte) error {
 	return err
 }
 
-func errorParser(data []byte) (ErrorMessage, error) {
+// errorParser is a method of the PCICClient struct that parses the error message from the given data string.
+// The function returns the parsed error status and any error that occurred during parsing.
+func (p *PCICClient) errorParser(data string) (ErrorMessage, error) {
 	var err error
 	errorStatus := ErrorMessage{}
-	n, err := fmt.Sscanf(
-		string(data),
-		"%09d:%s",
-		&errorStatus.ID,
-		&errorStatus.Message,
-	)
-	if n != 2 {
-		return ErrorMessage{}, errors.New("unable to parse the error message")
+	if p.errRegEx == nil {
+		return errorStatus, errors.New("no error regex provided, please instantiate the object")
+	}
+	// Find the matches
+	matches := p.errRegEx.FindStringSubmatch(data)
+	if len(matches) < 2 {
+		return errorStatus, fmt.Errorf("unable to parse the error message: %d, %s", len(matches), string(data))
+	}
+	idStr := strings.TrimLeft(matches[1], "0")
+	if idStr == "" {
+		idStr = "0" // Handle the case where the string is all zeros
+	}
+	errorStatus.ID, err = strconv.Atoi(idStr)
+	if len(matches) == 3 {
+		errorStatus.Message = matches[2]
 	}
 	return errorStatus, err
 }

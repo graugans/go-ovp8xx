@@ -34,7 +34,7 @@ func (r *PCICReceiver) Result(frame pcic.Frame) {
 // It sets the errorMsg field of the PCICReceiver struct and prints the error message.
 func (r *PCICReceiver) Error(msg pcic.ErrorMessage) {
 	r.errorMsg = msg
-	fmt.Printf("Error: %v\n", msg)
+	fmt.Printf("Error: <%d>: %s\n", msg.ID, msg.Message)
 }
 
 // Notification is a method of the PCICReceiver type that handles incoming notification messages.
