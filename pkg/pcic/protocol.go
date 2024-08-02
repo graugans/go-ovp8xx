@@ -189,7 +189,7 @@ func (p *PCICClient) ProcessIncomming(handler MessageHandler) error {
 		handler.Result(frame)
 		return err
 	} else if bytes.Equal(errorTicket, firstTicket) {
-		errorStatus, err := p.errorParser(string(data))
+		errorStatus, err := p.errorParser(string(data[:len(data)-2]))
 		handler.Error(errorStatus)
 		return err
 	}
@@ -292,6 +292,9 @@ func (p *PCICClient) errorParser(data string) (ErrorMessage, error) {
 	errorStatus.ID, err = strconv.Atoi(idStr)
 	if len(matches) == 3 {
 		errorStatus.Message = matches[2]
+		if len(errorStatus.Message) == 0 {
+			return errorStatus, fmt.Errorf("a malformed error message was received: %s", data)
+		}
 	}
 	return errorStatus, err
 }
