@@ -324,8 +324,6 @@ func asyncResultParser(data []byte) (Frame, error) {
 		frame.Chunks = append(frame.Chunks, c)
 		offset += c.Size()
 		remainingBytes -= c.Size()
-
 	}
 	return frame, err
-
 }

@@ -244,7 +244,6 @@ func TestUnmarshalBinary(t *testing.T) {
 		}),
 		"The Chunk size is bigger than the data size",
 	)
-
 }
 
 func TestRoundtrip(t *testing.T) {

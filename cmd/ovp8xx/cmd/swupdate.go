@@ -64,7 +64,6 @@ func swupdateCommand(cmd *cobra.Command, args []string) error {
 			if value, ok := n["text"]; ok && n["type"] == "message" {
 				fmt.Println(value)
 			}
-
 		}
 		wg.Done() // Decrease counter when goroutine completes
 	}()

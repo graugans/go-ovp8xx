@@ -25,11 +25,16 @@ func IsTimeoutError(err error) bool {
 //	config, err := device.Get([]string{"/device", "/ports"})
 //	// ...
 func (device *Client) Get(pointers []string) (Config, error) {
+	var err error
 	client, err := xmlrpc.NewClient(device.url)
 	if err != nil {
 		return *NewConfig(), err
 	}
-	defer client.Close()
+	defer func() {
+		if closeErr := client.Close(); closeErr != nil {
+			err = closeErr
+		}
+	}()
 
 	result := &struct {
 		JSON string
@@ -49,11 +54,16 @@ func (device *Client) Get(pointers []string) (Config, error) {
 // Set sets the configuration of the OVP8xx device.
 // It takes a Config object as input and returns an error if any.
 func (device *Client) Set(conf Config) error {
+	var err error
 	client, err := xmlrpc.NewClient(device.url)
 	if err != nil {
 		return err
 	}
-	defer client.Close()
+	defer func() {
+		if closeErr := client.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
 
 	arg := &struct {
 		Data string
@@ -69,7 +79,11 @@ func (device *Client) GetInit() (Config, error) {
 	if err != nil {
 		return *NewConfig(), err
 	}
-	defer client.Close()
+	defer func() {
+		if closeErr := client.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
 
 	result := &struct {
 		JSON string
@@ -91,7 +105,11 @@ func (device *Client) SaveInit(pointers []string) error {
 	if err != nil {
 		return err
 	}
-	defer client.Close()
+	defer func() {
+		if closeErr := client.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
 
 	// In case no pointer is given save the complete configuration
 	if len(pointers) == 0 {
@@ -114,7 +132,11 @@ func (device *Client) FactoryReset(keepNetworkSettings bool) error {
 	if err != nil {
 		return err
 	}
-	defer client.Close()
+	defer func() {
+		if closeErr := client.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
 
 	arg := &struct {
 		KeepNetworkSettings bool
@@ -132,7 +154,11 @@ func (device *Client) GetSchema(pointers []string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer client.Close()
+	defer func() {
+		if closeErr := client.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
 
 	result := &struct {
 		JSON string
@@ -153,7 +179,11 @@ func (device *Client) Reboot() error {
 	if err != nil {
 		return err
 	}
-	defer client.Close()
+	defer func() {
+		if closeErr := client.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
 
 	return client.Call("reboot", nil, nil)
 }
@@ -167,7 +197,11 @@ func (device *Client) RebootToSWUpdate() error {
 	if err != nil {
 		return err
 	}
-	defer client.Close()
+	defer func() {
+		if closeErr := client.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
 	return client.Call("rebootToRecovery", nil, nil)
 }
 
@@ -183,7 +217,11 @@ func (device *Client) Remove(pointer string) error {
 	if err != nil {
 		return err
 	}
-	defer client.Close()
+	defer func() {
+		if closeErr := client.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
 
 	arg := &struct {
 		Pointer string
@@ -199,7 +237,11 @@ func (device *DiagnosisClient) GetFiltered(conf Config) (Config, error) {
 	if err != nil {
 		return *NewConfig(), err
 	}
-	defer client.Close()
+	defer func() {
+		if closeErr := client.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
 
 	arg := &struct {
 		Data string
@@ -223,7 +265,11 @@ func (device *DiagnosisClient) GetFilterSchema() (Config, error) {
 	if err != nil {
 		return *NewConfig(), err
 	}
-	defer client.Close()
+	defer func() {
+		if closeErr := client.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
 
 	result := &struct {
 		JSON string
