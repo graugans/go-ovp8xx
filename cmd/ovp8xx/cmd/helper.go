@@ -15,7 +15,7 @@ type helperConfig struct {
 }
 
 func (c *helperConfig) printJSONResult(data string) error {
-	var message string = data
+	var message = data
 	if c.prettyPrint() {
 		var js json.RawMessage
 		if err := json.Unmarshal([]byte(data), &js); err != nil {

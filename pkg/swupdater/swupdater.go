@@ -51,7 +51,11 @@ func (s *SWUpdater) upload(filename string) error {
 	if err != nil {
 		return fmt.Errorf("cannot open file: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
 
 	fileInfo, err := file.Stat()
 	if err != nil {
@@ -71,7 +75,11 @@ func (s *SWUpdater) upload(filename string) error {
 	if err != nil {
 		return fmt.Errorf("cannot send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
 	return err
 }
 
@@ -98,7 +106,6 @@ func (s *SWUpdater) upload(filename string) error {
 //	  // SWUpdater process completed successfully
 //	}
 func (s *SWUpdater) waitForFinished(done chan error) {
-
 	for {
 		_, message, err := s.ws.ReadMessage()
 		if err != nil {
@@ -139,8 +146,8 @@ func (s *SWUpdater) connect() error {
 	return err
 }
 
-func (s *SWUpdater) disconnect() {
-	s.ws.Close()
+func (s *SWUpdater) disconnect() error {
+	return s.ws.Close()
 }
 
 // statusUpdate updates the status of the SWUpdater.
@@ -165,7 +172,11 @@ func (s *SWUpdater) Update(filename string, connectionTimeout, timeout time.Dura
 		return err
 	}
 	// close the websocket after the Update operation
-	defer s.disconnect()
+	defer func() {
+		if closeErr := s.disconnect(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
 
 	s.statusUpdate("Starting the Software Update process...")
 	go s.waitForFinished(done)
@@ -215,7 +226,11 @@ func (s *SWUpdater) Restart(timeout time.Duration) error {
 		return err
 	}
 	// close the websocket after the Restart operation
-	defer s.disconnect()
+	defer func() {
+		if closeErr := s.disconnect(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
 
 	// Create a POST request with an empty body
 	req, err := http.NewRequest("POST", restartURL, nil)
@@ -228,7 +243,11 @@ func (s *SWUpdater) Restart(timeout time.Duration) error {
 	if err != nil {
 		return fmt.Errorf("failed to send restart request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
 
 	if resp.StatusCode == http.StatusServiceUnavailable {
 		return fmt.Errorf("the SWUpdate service is not available at the moment, please try again later")

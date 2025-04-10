@@ -50,7 +50,7 @@ func (r *PCICReceiver) Notification(msg pcic.NotificationMessage) {
 // If an error occurs during any of these steps, it is returned.
 // Returns nil if the function completes successfully.
 func pcicCommand(cmd *cobra.Command, args []string) error {
-	var testHandler *PCICReceiver = &PCICReceiver{}
+	var testHandler = &PCICReceiver{}
 	var err error
 
 	// Retrieve the slice of commands
@@ -97,7 +97,7 @@ func pcicCommand(cmd *cobra.Command, args []string) error {
 			length, err := strconv.Atoi(lengthStr) // Convert the string to an integer
 			if err != nil {
 				// Response does not start with the length, print the whole response
-				fmt.Println(prefix, (response))
+				fmt.Println(prefix, string(response))
 			} else {
 				if len(response) >= 9+length {
 					// Strip the first 9 bytes and print the rest up to the specified length

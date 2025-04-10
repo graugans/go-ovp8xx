@@ -217,7 +217,6 @@ func (c *Chunk) MarshalBinary() (data []byte, err error) {
 // It copies the data from the input slice to comply with the BinaryUnmarshaler
 // interface.
 func (c *Chunk) UnmarshalBinary(data []byte) error {
-
 	dataLen := uint32(len(data))
 	if dataLen < offsetOfData {
 		return errors.New("unable to parse an empty input")
@@ -315,8 +314,6 @@ func (c *Chunk) UnmarshalBinary(data []byte) error {
 			len(c.data),
 			c.dataFormat,
 		)
-
 	}
-
 	return nil
 }

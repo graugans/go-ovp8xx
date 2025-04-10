@@ -239,7 +239,6 @@ func TestReceiveWithChunk(t *testing.T) {
 		err,
 		"We expect an error while receiving data with an invalid ticket",
 	)
-
 }
 
 func TestReceiveWithNewChunk(t *testing.T) {
@@ -275,7 +274,11 @@ func TestReceiveWithNewChunk(t *testing.T) {
 func TestWithRealChunkData(t *testing.T) {
 	file, err := tfs.Open("testdata/pcic-test-data.blob.bz2")
 	assert.NoError(t, err, "No error expected while reading the input")
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
 	buf := bufio.NewReader(file)
 	cr := bzip2.NewReader(buf)
 	readerWriter := bufio.NewReadWriter(
@@ -296,7 +299,6 @@ func TestWithRealChunkData(t *testing.T) {
 		}
 		fmt.Println("]")
 	}
-
 }
 
 func TestWithMalformedErrorData(t *testing.T) {
@@ -343,7 +345,11 @@ func TestWithErrorData(t *testing.T) {
 func TestWithRealErrorData(t *testing.T) {
 	file, err := tfs.Open("testdata/pcic-diagnostic.blob.bz2")
 	assert.NoError(t, err, "No error expected while reading the input")
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
 	buf := bufio.NewReader(file)
 	cr := bzip2.NewReader(buf)
 	readerWriter := bufio.NewReadWriter(
@@ -365,5 +371,4 @@ func TestWithRealErrorData(t *testing.T) {
 			"An invalid error ID received",
 		)
 	}
-
 }
