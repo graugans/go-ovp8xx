@@ -25,6 +25,30 @@ One of the benefits of the Go language is the easy way of producing statically l
 
 With the CLI you can get the configuration from the device and [filter](doc/filter.md) it as you need. After transforming the config it can be written back to the device.
 
+### CLI PCIC Receiver
+
+There is a simple PCIC data receiver which is useful to check the data transferred over PCIC. PCIC is a proprietary protocol designed by ifm. For the OVP8xx line of devices the results provided by PCIC are encapsulated into a Chunk. The following information is available for each Chunk:
+
+- **FrameCount**, This counts the frames received within this connection.
+- **Index**, The index of the Chunk within the frame.
+- **Type**, The unique Chunk type
+- **Size**, The size in bytes of the Chunk
+- **Status**, The the device default: 0
+- **Timestamp**, The timestamp of the frame
+- **Bytes**, The payload
+
+Typically only the frame count is printed out. To dump more information please use `--dump` to receive a full representation of the Chunk. This can be filtered by the Go `text/template` notation like this:
+
+```sh
+ovp8xx pcic --dump  --template "Chunk {{.Index}}:\n  Type: {{.Type}}\n  Size: {{.Size}} bytes\n Data Hexdump:\n{{hexdump_range .Bytes 0 32}}"
+```
+
+There are two custom commands for the `text/template`:
+- **hexdump <data>**, dumps the argument given as an Hexdump
+- **hexdump_range <data> <offset> <length>**, dumps the data starting at an offset and a given length. If an length of `-1` is provided the content of `<data>` will be outputted starting at the `<offset>`
+
+For linebreaks within the template string please use `\n`.
+
 ### CLI  Installation
 
 #### Pre Build Binaries
