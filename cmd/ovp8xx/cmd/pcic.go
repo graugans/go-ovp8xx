@@ -5,10 +5,15 @@ package cmd
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"strconv"
 	"sync"
+	"text/template"
 	"time"
+
+	"os"
+	"strings"
 
 	"github.com/graugans/go-ovp8xx/v2/pkg/pcic"
 	"github.com/spf13/cobra"
@@ -20,13 +25,55 @@ type PCICReceiver struct {
 	notificationMsg pcic.NotificationMessage // The notification message.
 	errorMsg        pcic.ErrorMessage        // The error message.
 	framecount      int64                    // The count of frames received.
+	dump            bool                     // A variable to store the --dump flag
+	tmpl            *template.Template       // Parsed template for dumping chunks
 }
+
+var chunkTemplate = `Chunk {{.Index}}:
+  Type: {{.Type}}
+  Size: {{.Size}} bytes
+  Frame Count: {{.FrameCount}}
+  Status: {{.Status}}
+  Timestamp: {{.Timestamp}}
+  Data Hexdump:
+{{hexdump .Bytes}}
+`
+
+var templateString string // Global variable to store the --template flag value
 
 // Result is a method of the PCICReceiver struct that sets the received frame and increments the framecount.
 // It takes a pcic.Frame as a parameter.
 func (r *PCICReceiver) Result(frame pcic.Frame) {
 	r.frame = frame
-	fmt.Printf("Frame count: %d\n", r.framecount)
+	if r.dump { // Only dump if the --dump flag is set
+		// Iterate over the chunks in the frame
+		for i, chunk := range frame.Chunks {
+			data := struct {
+				Index      int
+				Type       uint32
+				Size       int
+				FrameCount uint32
+				Status     uint32
+				Timestamp  string
+				Bytes      []byte
+			}{
+				Index:      i,
+				Type:       uint32(chunk.Type()),
+				Size:       chunk.Size(),
+				FrameCount: chunk.FrameCount(),
+				Status:     chunk.Status(),
+				Timestamp:  chunk.TimeStamp().String(),
+				Bytes:      chunk.Bytes(),
+			}
+
+			err := r.tmpl.Execute(os.Stdout, data)
+			if err != nil {
+				fmt.Printf("Error executing template: %v\n", err)
+			}
+		}
+	} else {
+		fmt.Printf("Frame count: %d\n", r.framecount)
+	}
 	r.framecount++
 }
 
@@ -56,8 +103,43 @@ func pcicCommand(cmd *cobra.Command, args []string) error {
 	// Retrieve the slice of commands
 	cmds, err := cmd.Flags().GetStringSlice("cmd")
 	if err != nil {
-		// Handle the error
 		return err
+	}
+
+	// Check if the dump flag is set
+	if testHandler.dump, err = cmd.Flags().GetBool("dump"); err != nil {
+		return err
+	}
+
+	// Parse the template and store it in the receiver
+	if testHandler.dump {
+		funcMap := template.FuncMap{
+			"hexdump": func(data []byte) string {
+				return hex.Dump(data) // Dump all bytes
+			},
+			"hexdump_range": func(data []byte, start int, length int) string {
+				if start < 0 || start >= len(data) {
+					return "Invalid start index"
+				}
+				if length == -1 || start+length > len(data) {
+					length = len(data) - start // Adjust length to dump until the end
+				}
+				return hex.Dump(data[start : start+length])
+			},
+		}
+
+		// Use the provided template string or the default one
+		if templateString == "" {
+			templateString = chunkTemplate
+		} else {
+			// Replace literal `\n` with actual newlines
+			templateString = strings.ReplaceAll(templateString, `\n`, "\n")
+		}
+
+		testHandler.tmpl, err = template.New("chunk").Funcs(funcMap).Parse(templateString)
+		if err != nil {
+			return fmt.Errorf("error parsing template: %v", err)
+		}
 	}
 
 	helper, err := NewHelper(cmd)
@@ -76,13 +158,13 @@ func pcicCommand(cmd *cobra.Command, args []string) error {
 		for {
 			err = pcic.ProcessIncomming(testHandler)
 			if err != nil {
-				// An error occured, we break the loop
+				// An error occurred, we break the loop
 				break
 			}
 		}
 	}()
 
-	// execute the commands
+	// Execute the commands
 	for _, cmd := range cmds {
 		prefix := fmt.Sprintf(" %s # ", cmd)
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -90,7 +172,6 @@ func pcicCommand(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			cancel()
 			return fmt.Errorf("failed to send command: %v", err)
-
 		}
 		if len(response) >= 9 { // Ensure there are at least 9 bytes
 			lengthStr := string(response[:9])      // Convert the first 9 bytes to a string
@@ -128,4 +209,6 @@ func init() {
 	rootCmd.AddCommand(pcicCmd)
 	pcicCmd.Flags().Uint16("port", 50010, "The port to connect to")
 	pcicCmd.Flags().StringSlice("cmd", []string{}, "Commands to be send to the device, can be specified multiple times. All commands will be executed in order")
+	pcicCmd.Flags().Bool("dump", false, "Dump frame and chunk data")
+	pcicCmd.Flags().StringVar(&templateString, "template", "", "Custom template for dumping frame and chunk data")
 }
