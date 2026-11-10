@@ -66,7 +66,7 @@ There are two custom commands for the `text/template`:
 
 For linebreaks within the template string please use `\n`.
 
-### CLI  Installation
+### CLI Installation
 
 #### Pre Build Binaries
 
@@ -74,12 +74,105 @@ The recommended and easiest way is to download the pre-build binary from the [Gi
 
 ⚠️ The Windows binary maybe flagged by a Virus Scanner, please also read the note from the [Go Team](https://go.dev/doc/faq#virus) ⚠️
 
-#### Go get
+On Linux and macOS extract the archive and copy the binary into a directory within your `PATH`:
+
+```sh
+tar xzf go-ovp8xx_Linux_x86_64.tar.gz ovp8xx
+sudo install -m 0755 ovp8xx /usr/local/bin/ovp8xx
+```
+
+#### Go install
 
 If you have a decent Go version installed
 
 ```sh
 go install github.com/graugans/go-ovp8xx/v2/cmd/ovp8xx@latest
+```
+
+The binary is installed to `$(go env GOPATH)/bin`, make sure this directory is part of your `PATH`.
+
+#### Enable the OVP9xx and O3Cxxx variants
+
+The release archives only contain the `ovp8xx` binary. To use the [other device families](#supported-device-families-multicall-binary) create links next to it.
+
+Linux and macOS:
+
+```sh
+cd "$(dirname "$(command -v ovp8xx)")"
+sudo ln -s ovp8xx ovp9xx
+sudo ln -s ovp8xx o3cxxx
+```
+
+Drop the `sudo` if the binary lives in a user writable directory such as `$(go env GOPATH)/bin`.
+
+Windows (PowerShell): symbolic links require administrator rights or the developer mode, so a hard link or a plain copy is the simpler choice:
+
+```powershell
+New-Item -ItemType HardLink -Path ovp9xx.exe -Target ovp8xx.exe
+New-Item -ItemType HardLink -Path o3cxxx.exe -Target ovp8xx.exe
+```
+
+Verify the installation:
+
+```sh
+ovp9xx --help   # A command line application to interact with the ifm OVP9xx series of devices
+```
+
+### CLI Usage
+
+All variants offer the same commands, the examples below use `ovp8xx` but work the same way with `ovp9xx` and `o3cxxx`. Use `--help` on any command for the full list of options.
+
+Select the device either by the `--ip` flag or by the environment variable of the variant:
+
+```sh
+ovp8xx --ip 192.168.0.69 get
+export OVP9XX_IP=192.168.0.70
+ovp9xx get
+```
+
+Without a link the variant can also be chosen by `OVP8XX_VARIANT`:
+
+```sh
+OVP8XX_VARIANT=o3cxxx ovp8xx get
+```
+
+Query the configuration, optionally limited by JSON pointers and pretty printed. See the [filter documentation](doc/filter.md) for transforming the result:
+
+```sh
+ovp8xx get --pretty
+ovp8xx get -p /device/swVersion -p /ports/port0
+```
+
+Write a configuration back to the device, either as an argument or via stdin:
+
+```sh
+ovp8xx set '{"device":{"info":{"name":"my-device"}}}'
+ovp8xx get -p /device/info | ovp8xx set
+```
+
+Persist the current configuration as the init configuration and read it back:
+
+```sh
+ovp8xx saveInit -p /device/info
+ovp8xx getInit --pretty
+```
+
+Further commands:
+
+```sh
+ovp8xx getSchema -p /device --pretty        # JSON schema of the configuration
+ovp8xx diagnostic getFiltered               # active diagnostic events
+ovp8xx pcic --port 50010                    # receive PCIC result data
+ovp8xx reboot                               # reboot the device
+ovp8xx WaitForOnline --timeout 120          # wait until the device is reachable again
+```
+
+Update the firmware, the device has to be rebooted into the SWUpdate mode first:
+
+```sh
+ovp8xx reboot --swupdate
+ovp8xx swupdate firmware.swu
+ovp8xx swupdate restart                     # reboot back into productive mode
 ```
 
 ### API usage
