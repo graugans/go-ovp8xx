@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/graugans/go-ovp8xx/v2/pkg/ovp8xx"
 	"github.com/spf13/cobra"
 )
 
@@ -19,8 +18,8 @@ func SetVersionInfo(version, commit, date string) {
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:          "ovp8xx",
-	Short:        "A command line application to interact with the ifm OVP8xx series of devices",
+	Use:          currentVariant.name,
+	Short:        "A command line application to interact with the ifm " + currentVariant.displayName + " series of devices",
 	SilenceUsage: true,
 }
 
@@ -34,6 +33,16 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.PersistentFlags().String("ip", ovp8xx.GetEnv("OVP8XX_IP", "192.168.0.69"), "The IP address or hostname of the OVP8XX. If not provided the default will be taken from the environment variable OVP8XX_IP")
-
+	envHint := currentVariant.ipEnvVar()
+	if currentVariant != defaultVariant {
+		envHint += " or " + defaultVariant.ipEnvVar()
+	}
+	rootCmd.PersistentFlags().String(
+		"ip",
+		currentVariant.defaultHost(os.Getenv),
+		fmt.Sprintf(
+			"The IP address or hostname of the %s. If not provided the default will be taken from the environment variable %s",
+			currentVariant.displayName, envHint,
+		),
+	)
 }

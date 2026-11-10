@@ -33,7 +33,7 @@ func getSchemaCommand(cmd *cobra.Command, args []string) error {
 var getSchemaCmd = &cobra.Command{
 	Use:   "getSchema [pointers...]",
 	Short: "Retrieve the currently used JSON schema from the device",
-	Long: `The OVP8xx getSchema command accepts a list of JSON pointers.
+	Long: `The device getSchema command accepts a list of JSON pointers.
 The JSON schema provides details about multiple aspects of a parameter. It
 contains information like the type of a parameter and its defaults. It also
 provides information weather a parameter is readOnly or not.

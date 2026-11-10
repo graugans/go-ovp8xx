@@ -25,6 +25,23 @@ One of the benefits of the Go language is the easy way of producing statically l
 
 With the CLI you can get the configuration from the device and [filter](doc/filter.md) it as you need. After transforming the config it can be written back to the device.
 
+### Supported device families (multicall binary)
+
+Besides the OVP8xx the API compatible OVP9xx and O3Cxxx devices are supported as well. Similar to [BusyBox](https://busybox.net/) the `ovp8xx` binary is a multicall binary: the device family is selected by the name the binary is invoked with. The default is `ovp8xx`, to use the other variants create a link:
+
+```sh
+ln -s ovp8xx ovp9xx
+ln -s ovp8xx o3cxxx
+```
+
+| Binary name | Device family | IP environment variable |
+|-------------|---------------|-------------------------|
+| `ovp8xx`    | OVP8xx        | `OVP8XX_IP`             |
+| `ovp9xx`    | OVP9xx        | `OVP9XX_IP`, falls back to `OVP8XX_IP` |
+| `o3cxxx`    | O3Cxxx        | `O3CXXX_IP`, falls back to `OVP8XX_IP` |
+
+On Windows the binary can simply be copied or renamed (e.g. `o3cxxx.exe`). If renaming or linking is not an option, the variant can also be selected with the environment variable `OVP8XX_VARIANT` (e.g. `OVP8XX_VARIANT=ovp9xx`). A link name (`ovp9xx`, `o3cxxx`) takes precedence over the environment variable.
+
 ### CLI PCIC Receiver
 
 There is a simple PCIC data receiver which is useful to check the data transferred over PCIC. PCIC is a proprietary protocol designed by ifm. For the OVP8xx line of devices the results provided by PCIC are encapsulated into a Chunk. The following information is available for each Chunk:

@@ -33,7 +33,7 @@ func getInitCommand(cmd *cobra.Command, args []string) error {
 var getInitCmd = &cobra.Command{
 	Use:   "getInit",
 	Short: "Retrieve the init JSON configuration from the device",
-	Long: `The OVP8xx provides a way to store a configuration on the device
+	Long: `The device provides a way to store a configuration on the device
 
 NOTE: This shall be used with care, because it may lead to an system which is no
 longer useable when the expectation from the saved configuration is no longer met.`,
