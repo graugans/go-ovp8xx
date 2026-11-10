@@ -4,9 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -31,10 +34,22 @@ func NewSWUpdater(hostName string, port uint16, notifications chan SWUpdaterNoti
 	return &SWUpdater{
 		hostName:      hostName,
 		port:          port,
-		urlUpload:     fmt.Sprintf("http://%s:%d/upload", hostName, port),
-		urlStatus:     fmt.Sprintf("ws://%s:%d/ws", hostName, port),
+		urlUpload:     serviceURL("http", hostName, port, "/upload"),
+		urlStatus:     serviceURL("ws", hostName, port, "/ws"),
 		notifications: notifications,
 	}
+}
+
+// serviceURL builds the URL of a SWUpdate endpoint. IPv6 addresses are
+// enclosed in brackets, an optional zone (e.g. "fe80::1%eth0") is escaped.
+func serviceURL(scheme, host string, port uint16, path string) string {
+	host = strings.TrimSuffix(strings.TrimPrefix(host, "["), "]")
+	u := url.URL{
+		Scheme: scheme,
+		Host:   net.JoinHostPort(host, strconv.Itoa(int(port))),
+		Path:   path,
+	}
+	return u.String()
 }
 
 // Upload performs the upload of the specified file.
@@ -231,7 +246,7 @@ func (s *SWUpdater) waitForOnline(connectionTimeout time.Duration) (bool, error)
 // Restart reboots the device by sending a POST request to the restart endpoint.
 func (s *SWUpdater) Restart(timeout time.Duration) error {
 	// Construct the URL for the restart endpoint
-	restartURL := fmt.Sprintf("http://%s:%d/restart", s.hostName, s.port)
+	restartURL := serviceURL("http", s.hostName, s.port, "/restart")
 
 	online, err := s.waitForOnline(timeout)
 	if !online {

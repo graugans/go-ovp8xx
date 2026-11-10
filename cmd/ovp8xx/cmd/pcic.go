@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"net"
 	"strconv"
 	"sync"
 	"text/template"
@@ -151,7 +152,8 @@ func pcicCommand(cmd *cobra.Command, args []string) error {
 		pcic.WithTCPClient(helper.hostname(), helper.remotePort()),
 	)
 	if err != nil {
-		return fmt.Errorf("unable to connect to %s:%d: %w", helper.hostname(), helper.remotePort(), err)
+		return fmt.Errorf("unable to connect to %s: %w",
+			net.JoinHostPort(helper.hostname(), strconv.Itoa(int(helper.remotePort()))), err)
 	}
 	defer func() { _ = pcic.Close() }()
 
