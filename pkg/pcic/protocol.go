@@ -104,7 +104,7 @@ func WithBufioReaderWriter(com *bufio.ReadWriter) PCICClientOption {
 // If an error occurs during the connection establishment, it will be handled and returned.
 func WithTCPClient(hostname string, port uint16) PCICClientOption {
 	return func(c *PCICClient) error {
-		conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", hostname, port))
+		conn, err := net.Dial("tcp", net.JoinHostPort(hostname, strconv.Itoa(int(port))))
 		if err != nil {
 			return err
 		}
