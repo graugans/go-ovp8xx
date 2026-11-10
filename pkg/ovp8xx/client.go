@@ -80,6 +80,9 @@ func AndAppsAreOnline() WaitForOption {
 	}
 }
 
+// availabilityPollInterval is the pause between two availability checks.
+const availabilityPollInterval = 250 * time.Millisecond
+
 // IsAvailable checks if the client is available by making a XML-RPC get request to query the "/device" object.
 // This is useful to wait until a device is ready for communication.
 // It returns a boolean indicating the availability status and an error if any.
@@ -89,10 +92,6 @@ func AndAppsAreOnline() WaitForOption {
 //	ok, err := device.IsAvailable(time.Duration(timeout) * time.Second, ovp8xx.AndPortsAreOnline())
 //	// ...
 func (d *Client) IsAvailable(timeout time.Duration, opts ...WaitForOption) (bool, error) {
-	var err error
-	proc := make(chan struct{}, 1)
-	conf := *NewConfig()
-
 	waitingFor := &WaitForConfig{
 		stage: "device",
 	}
@@ -102,6 +101,41 @@ func (d *Client) IsAvailable(timeout time.Duration, opts ...WaitForOption) (bool
 		opt(waitingFor)
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	// The check runs in its own goroutine, because a single request may block
+	// longer than the timeout. The goroutine stops once the context is done.
+	available := make(chan struct{}, 1)
+	go func() {
+		for {
+			if d.reachedStage(waitingFor.stage) {
+				available <- struct{}{}
+				return
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(availabilityPollInterval):
+			}
+		}
+	}()
+
+	select {
+	case <-ctx.Done():
+		return false, fmt.Errorf("timeout occurred while checking if the device is available: %w", ctx.Err())
+	case <-available:
+		return true, nil
+	}
+}
+
+// reachedStage returns true if the device reports the given configuration
+// initialization stage.
+func (d *Client) reachedStage(stage string) bool {
+	conf, err := d.Get([]string{"/device/diagnostic/confInitStages"})
+	if err != nil {
+		return false
+	}
 	// result is a struct that represents the response from the OVP8xx device.
 	// It contains information about the device's diagnostic data, such as the configuration initialization stages.
 	result := struct {
@@ -111,34 +145,8 @@ func (d *Client) IsAvailable(timeout time.Duration, opts ...WaitForOption) (bool
 			} `json:"diagnostic"`
 		} `json:"device"`
 	}{}
-
-	go func() {
-		for {
-			if conf, err = d.Get([]string{"/device/diagnostic/confInitStages"}); err != nil {
-				// In case of an error retry, regardless of an timeout
-				continue
-			}
-			// Unmarshal the data into the result struct
-			if err = json.Unmarshal([]byte(conf.String()), &result); err != nil {
-				// In case of an error retry until the timeout
-				continue
-			}
-			// Check if the device is ready
-			if slices.Contains(result.Device.Diagnostic.ConfInitStages, waitingFor.stage) {
-				// we are done, the get call was successful
-				proc <- struct{}{}
-			}
-		}
-	}()
-
-	ctx := context.Background()
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	select {
-	case <-ctx.Done():
-		return false, fmt.Errorf("timeout occurred while checking if the device is available: %w", ctx.Err())
-	case <-proc:
-		return true, err
+	if err := json.Unmarshal([]byte(conf.String()), &result); err != nil {
+		return false
 	}
+	return slices.Contains(result.Device.Diagnostic.ConfInitStages, stage)
 }
