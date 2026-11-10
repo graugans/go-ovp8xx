@@ -17,6 +17,36 @@ func IsTimeoutError(err error) bool {
 	return false
 }
 
+// jsonResult is the reply of all XML-RPC methods returning a JSON document.
+type jsonResult struct {
+	JSON string
+}
+
+// call opens a connection to url, invokes method and closes the connection
+// again. An error while closing the connection is only reported if the call
+// itself succeeded.
+func call(url, method string, args, reply any) (err error) {
+	client, err := xmlrpc.NewClient(url)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if closeErr := client.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
+	return client.Call(method, args, reply)
+}
+
+// callConfig invokes method and returns the JSON reply as Config.
+func callConfig(url, method string, args any) (Config, error) {
+	result := &jsonResult{}
+	if err := call(url, method, args, result); err != nil {
+		return *NewConfig(), err
+	}
+	return *NewConfig(WitJSONString(result.JSON)), nil
+}
+
 // Get retrieves the configuration for the specified pointers from the OVP8xx device.
 // The pointers parameter is a slice of strings that contains the pointers to retrieve the configuration for.
 // The function returns the retrieved configuration as a Config struct and an error if any occurred.
@@ -25,75 +55,25 @@ func IsTimeoutError(err error) bool {
 //	config, err := device.Get([]string{"/device", "/ports"})
 //	// ...
 func (device *Client) Get(pointers []string) (Config, error) {
-	var err error
-	client, err := xmlrpc.NewClient(device.url)
-	if err != nil {
-		return *NewConfig(), err
-	}
-	defer func() {
-		if closeErr := client.Close(); closeErr != nil {
-			err = closeErr
-		}
-	}()
-
-	result := &struct {
-		JSON string
-	}{}
-
 	arg := &struct {
 		Pointers []string
 	}{Pointers: pointers}
-
-	if err = client.Call("get", arg, result); err != nil {
-		return *NewConfig(), err
-	}
-
-	return *NewConfig(WitJSONString(result.JSON)), nil
+	return callConfig(device.url, "get", arg)
 }
 
 // Set sets the configuration of the OVP8xx device.
 // It takes a Config object as input and returns an error if any.
 func (device *Client) Set(conf Config) error {
-	var err error
-	client, err := xmlrpc.NewClient(device.url)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if closeErr := client.Close(); closeErr != nil && err == nil {
-			err = closeErr
-		}
-	}()
-
 	arg := &struct {
 		Data string
 	}{Data: conf.String()}
-
-	return client.Call("set", arg, nil)
+	return call(device.url, "set", arg, nil)
 }
 
 // GetInit retrieves the initial configuration from the OVP8xx device.
 // It returns a Config struct representing the device configuration and an error if any.
 func (device *Client) GetInit() (Config, error) {
-	client, err := xmlrpc.NewClient(device.url)
-	if err != nil {
-		return *NewConfig(), err
-	}
-	defer func() {
-		if closeErr := client.Close(); closeErr != nil && err == nil {
-			err = closeErr
-		}
-	}()
-
-	result := &struct {
-		JSON string
-	}{}
-
-	if err = client.Call("getInit", nil, result); err != nil {
-		return *NewConfig(), err
-	}
-
-	return *NewConfig(WitJSONString(result.JSON)), nil
+	return callConfig(device.url, "getInit", nil)
 }
 
 // SaveInit saves the configuration of the OVP8xx device.
@@ -101,72 +81,35 @@ func (device *Client) GetInit() (Config, error) {
 // If pointers are provided, it saves only the specified configuration pointers.
 // It returns an error if there was a problem saving the configuration.
 func (device *Client) SaveInit(pointers []string) error {
-	client, err := xmlrpc.NewClient(device.url)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if closeErr := client.Close(); closeErr != nil && err == nil {
-			err = closeErr
-		}
-	}()
-
 	// In case no pointer is given save the complete configuration
 	if len(pointers) == 0 {
-		return client.Call("saveInit", nil, nil)
+		return call(device.url, "saveInit", nil, nil)
 	}
-
 	arg := &struct {
 		Pointers []string
-	}{
-		Pointers: pointers,
-	}
-	return client.Call("saveInit", arg, nil)
+	}{Pointers: pointers}
+	return call(device.url, "saveInit", arg, nil)
 }
 
 // FactoryReset performs a factory reset on the OVP8xx device.
 // If keepNetworkSettings is set to true, the network settings will be preserved after the reset.
 // Returns an error if the factory reset fails or if there is an issue with the XML-RPC client.
 func (device *Client) FactoryReset(keepNetworkSettings bool) error {
-	client, err := xmlrpc.NewClient(device.url)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if closeErr := client.Close(); closeErr != nil && err == nil {
-			err = closeErr
-		}
-	}()
-
 	arg := &struct {
 		KeepNetworkSettings bool
-	}{
-		KeepNetworkSettings: keepNetworkSettings,
-	}
-	return client.Call("factoryReset", arg, nil)
+	}{KeepNetworkSettings: keepNetworkSettings}
+	return call(device.url, "factoryReset", arg, nil)
 }
 
 // GetSchema retrieves the schema for the specified pointers from the OVP8xx device.
 // It returns the schema in JSON format as a string.
 // If an error occurs during the retrieval process, it returns an empty string and the error.
 func (device *Client) GetSchema(pointers []string) (string, error) {
-	client, err := xmlrpc.NewClient(device.url)
-	if err != nil {
-		return "", err
-	}
-	defer func() {
-		if closeErr := client.Close(); closeErr != nil && err == nil {
-			err = closeErr
-		}
-	}()
-
-	result := &struct {
-		JSON string
-	}{}
 	arg := &struct {
 		Pointers []string
 	}{Pointers: pointers}
-	if err := client.Call("getSchema", arg, result); err != nil {
+	result := &jsonResult{}
+	if err := call(device.url, "getSchema", arg, result); err != nil {
 		return "", err
 	}
 	return result.JSON, nil
@@ -175,17 +118,7 @@ func (device *Client) GetSchema(pointers []string) (string, error) {
 // Reboot sends a reboot command to the OVP8xx device.
 // If an error occurs during the connection or the method call, it is returned.
 func (device *Client) Reboot() error {
-	client, err := xmlrpc.NewClient(device.url)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if closeErr := client.Close(); closeErr != nil && err == nil {
-			err = closeErr
-		}
-	}()
-
-	return client.Call("reboot", nil, nil)
+	return call(device.url, "reboot", nil, nil)
 }
 
 // RebootToSWUpdate reboots the OVP8xx device into software update mode.
@@ -193,16 +126,7 @@ func (device *Client) Reboot() error {
 // This method is typically used to initiate a firmware update on the device.
 // Returns an error if there was a problem establishing the connection or calling the method.
 func (device *Client) RebootToSWUpdate() error {
-	client, err := xmlrpc.NewClient(device.url)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if closeErr := client.Close(); closeErr != nil && err == nil {
-			err = closeErr
-		}
-	}()
-	return client.Call("rebootToRecovery", nil, nil)
+	return call(device.url, "rebootToRecovery", nil, nil)
 }
 
 // Remove does remove an element from the device temporary configuration.
@@ -213,71 +137,23 @@ func (device *Client) RebootToSWUpdate() error {
 //
 // If an error occurs during the connection or the method call, it is returned.
 func (device *Client) Remove(pointer string) error {
-	client, err := xmlrpc.NewClient(device.url)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if closeErr := client.Close(); closeErr != nil && err == nil {
-			err = closeErr
-		}
-	}()
-
 	arg := &struct {
 		Pointer string
 	}{Pointer: pointer}
-
-	return client.Call("remove", arg, nil)
+	return call(device.url, "remove", arg, nil)
 }
 
 // GetFiltered retrieves a filtered configuration from the DiagnosisClient.
 // It takes a Config object as input and returns a Config object and an error.
 func (device *DiagnosisClient) GetFiltered(conf Config) (Config, error) {
-	client, err := xmlrpc.NewClient(device.url)
-	if err != nil {
-		return *NewConfig(), err
-	}
-	defer func() {
-		if closeErr := client.Close(); closeErr != nil && err == nil {
-			err = closeErr
-		}
-	}()
-
 	arg := &struct {
 		Data string
 	}{Data: conf.String()}
-
-	result := &struct {
-		JSON string
-	}{}
-
-	if err = client.Call("getFiltered", arg, result); err != nil {
-		return *NewConfig(), err
-	}
-
-	return *NewConfig(WitJSONString(result.JSON)), nil
+	return callConfig(device.url, "getFiltered", arg)
 }
 
 // GetFilterSchema retrieves the filter schema from the DiagnosisClient.
 // It returns a Config object representing the filter schema and an error if any.
 func (device *DiagnosisClient) GetFilterSchema() (Config, error) {
-	client, err := xmlrpc.NewClient(device.url)
-	if err != nil {
-		return *NewConfig(), err
-	}
-	defer func() {
-		if closeErr := client.Close(); closeErr != nil && err == nil {
-			err = closeErr
-		}
-	}()
-
-	result := &struct {
-		JSON string
-	}{}
-
-	if err = client.Call("getFilterSchema", nil, result); err != nil {
-		return *NewConfig(), err
-	}
-
-	return *NewConfig(WitJSONString(result.JSON)), nil
+	return callConfig(device.url, "getFilterSchema", nil)
 }
