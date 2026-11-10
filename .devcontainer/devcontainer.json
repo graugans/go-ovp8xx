@@ -5,11 +5,19 @@
 	// Debian stable (trixie) based Go image
 	"image": "mcr.microsoft.com/devcontainers/go:2-1.27-trixie",
 
-	// Features to add to the dev container. More info: https://containers.dev/features.
-	// "features": {},
+	// Make sure the Claude Code config directory exists on the host,
+	// otherwise Docker would create it owned by root.
+	"initializeCommand": "mkdir -p \"${localEnv:HOME}/.claude\"",
 
-	// Use 'forwardPorts' to make a list of ports inside the container available locally.
-	// "forwardPorts": [],
+	// Share the host Claude Code config (incl. credentials) with the container,
+	// so the authentication survives container rebuilds.
+	"mounts": [
+		"source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind"
+	],
+	"containerEnv": {
+		// Keeps .claude.json inside the mounted directory instead of $HOME
+		"CLAUDE_CONFIG_DIR": "/home/vscode/.claude"
+	},
 
 	// Use 'postCreateCommand' to run commands after the container is created.
 	"postCreateCommand": "./.devcontainer/postCreateCommand.sh",
@@ -19,11 +27,10 @@
 		// Configure properties specific to VS Code.
 		"vscode": {
 			"extensions": [
-				"streetsidesoftware.code-spell-checker",
-				"golang.go"
+				"anthropic.claude-code",
+				"golang.go",
+				"streetsidesoftware.code-spell-checker"
 			]
 		}
 	}
-	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
-	// "remoteUser": "root"
 }
