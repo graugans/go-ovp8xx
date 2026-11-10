@@ -68,9 +68,40 @@ For linebreaks within the template string please use `\n`.
 
 ### CLI Installation
 
+#### Install script (Linux and macOS)
+
+The quickest way is the [install script](install.sh). It downloads the latest release for your OS and CPU architecture, verifies it against the `checksums.txt` of the release and installs `ovp8xx` together with the `ovp9xx` and `o3cxxx` links to `~/.local/bin`:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/graugans/go-ovp8xx/v2/install.sh | sh
+```
+
+The script never calls `sudo` on its own. Options are passed after `sh -s --`:
+
+```sh
+# install a specific release system wide
+curl -fsSL https://raw.githubusercontent.com/graugans/go-ovp8xx/v2/install.sh | sudo sh -s -- --version v2.11.0 --bin-dir /usr/local/bin
+```
+
+| Option            | Environment variable | Default            | Description                          |
+|-------------------|----------------------|--------------------|--------------------------------------|
+| `-b, --bin-dir`   | `OVP8XX_INSTALL_DIR` | `$HOME/.local/bin` | Installation directory               |
+| `-v, --version`   | `OVP8XX_VERSION`     | `latest`           | Release to install, e.g. `v2.11.0`   |
+| `--no-links`      |                      |                    | Do not create the `ovp9xx` and `o3cxxx` links |
+
+If you prefer to review the script before running it:
+
+```sh
+curl -fsSLO https://raw.githubusercontent.com/graugans/go-ovp8xx/v2/install.sh
+less install.sh
+sh install.sh
+```
+
+Running the same command again updates an existing installation.
+
 #### Pre Build Binaries
 
-The recommended and easiest way is to download the pre-build binary from the [GitHub Release page](https://github.com/graugans/go-ovp8xx/releases).
+Alternatively download the pre-build binary from the [GitHub Release page](https://github.com/graugans/go-ovp8xx/releases). This is also the way to go on Windows.
 
 ⚠️ The Windows binary maybe flagged by a Virus Scanner, please also read the note from the [Go Team](https://go.dev/doc/faq#virus) ⚠️
 
@@ -95,7 +126,7 @@ The binary is installed to `$(go env GOPATH)/bin`, make sure this directory is p
 
 #### Enable the OVP9xx and O3Cxxx variants
 
-The release archives only contain the `ovp8xx` binary. To use the [other device families](#supported-device-families-multicall-binary) create links next to it.
+The [install script](#install-script-linux-and-macos) creates these links automatically. When installing from the release archives or with `go install`, only the `ovp8xx` binary is available. To use the [other device families](#supported-device-families-multicall-binary) create links next to it.
 
 Linux and macOS:
 
