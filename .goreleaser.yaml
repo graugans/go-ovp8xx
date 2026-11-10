@@ -41,6 +41,10 @@ archives:
       format: zip
 checksum:
   name_template: 'checksums.txt'
+# Generate a Software Bill of Materials (SPDX JSON) for each archive using syft.
+# The SBOMs are uploaded as release assets next to the archives.
+sboms:
+  - artifacts: archive
 snapshot:
   name_template: "{{ incpatch .Version }}-next"
 changelog:
