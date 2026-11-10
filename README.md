@@ -81,6 +81,8 @@ tar xzf go-ovp8xx_Linux_x86_64.tar.gz ovp8xx
 sudo install -m 0755 ovp8xx /usr/local/bin/ovp8xx
 ```
 
+Each release archive comes with a Software Bill of Materials (SBOM) in the [SPDX](https://spdx.dev/) JSON format, e.g. `go-ovp8xx_Linux_x86_64.tar.gz.sbom.json`. It lists all Go modules compiled into the binary and is covered by `checksums.txt`.
+
 #### Go install
 
 If you have a decent Go version installed
