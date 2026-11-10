@@ -1,26 +1,29 @@
 #!/bin/bash
+set -euo pipefail
+
+GOLANGCI_LINT_VERSION="v2.15.0"
+
+# The base image may ship a yarn apt source with an expired signing key,
+# which breaks `apt-get update`. Yarn is not needed for this project.
+sudo rm -f /etc/apt/sources.list.d/yarn.list
 
 # install missing packages
-sudo apt-get update &&
-    sudo apt-get install -q -y \
-        git-lfs \
-        python3-pip \
-        python3-venv \
-        shfmt \
-        shellcheck &&
-    sudo apt-get clean &&
-    sudo rm -rf /var/lib/apt/lists/*
+sudo apt-get update
+sudo apt-get install -q -y \
+    git-lfs \
+    pre-commit \
+    shfmt \
+    shellcheck
+sudo apt-get clean
+sudo rm -rf /var/lib/apt/lists/*
 
-# Fetch git large files
-git lfs fetch --all
-
-# Install Python packages
-export PATH=~/.local/bin:$PATH
-pip3 install --break-system-packages --upgrade pip
-pip3 install --break-system-packages -r requirements.txt
+# Fetch git large files (the PCIC test data is stored in LFS)
+git lfs install --local
+git lfs pull
 
 # Go CI Lint
-curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b "$(go env GOPATH)/bin" v2.0
+curl -sSfL "https://raw.githubusercontent.com/golangci/golangci-lint/${GOLANGCI_LINT_VERSION}/install.sh" |
+    sh -s -- -b "$(go env GOPATH)/bin" "${GOLANGCI_LINT_VERSION}"
 
 # Go tools
 go install golang.org/x/tools/cmd/goimports@latest
