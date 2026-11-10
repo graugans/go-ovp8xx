@@ -150,14 +150,19 @@ func pcicCommand(cmd *cobra.Command, args []string) error {
 	pcic, err := pcic.NewPCICClient(
 		pcic.WithTCPClient(helper.hostname(), helper.remotePort()),
 	)
+	if err != nil {
+		return fmt.Errorf("unable to connect to %s:%d: %w", helper.hostname(), helper.remotePort(), err)
+	}
+	defer func() { _ = pcic.Close() }()
+
 	var wg sync.WaitGroup
+	var recvErr error
 	wg.Add(1) // We're going to wait for one goroutine
 
 	go func() {
 		defer wg.Done() // This will be called when the goroutine finishes
 		for {
-			err = pcic.ProcessIncomming(testHandler)
-			if err != nil {
+			if recvErr = pcic.ProcessIncomming(testHandler); recvErr != nil {
 				// An error occurred, we break the loop
 				break
 			}
@@ -195,7 +200,7 @@ func pcicCommand(cmd *cobra.Command, args []string) error {
 	}
 	// Wait for the goroutine to be finished
 	wg.Wait()
-	return err
+	return recvErr
 }
 
 // pcicCmd represents the pcic command
