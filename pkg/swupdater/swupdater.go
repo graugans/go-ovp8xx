@@ -40,7 +40,7 @@ func NewSWUpdater(hostName string, port uint16, notifications chan SWUpdaterNoti
 // Upload performs the upload of the specified file.
 // The filename parameter specifies the name of the file to be uploaded.
 // Returns an error if the upload fails.
-func (s *SWUpdater) upload(filename string) error {
+func (s *SWUpdater) upload(filename string) (err error) {
 	basename := filepath.Base(filename)
 	s.statusUpdate(
 		fmt.Sprintf("Uploading software image: %s to %s\n", basename, s.urlUpload),
@@ -68,7 +68,10 @@ func (s *SWUpdater) upload(filename string) error {
 		return fmt.Errorf("cannot write reader: %w", err)
 	}
 
-	req, _ := http.NewRequest("POST", s.urlUpload, nil)
+	req, err := http.NewRequest("POST", s.urlUpload, nil)
+	if err != nil {
+		return fmt.Errorf("cannot create request: %w", err)
+	}
 	ms.SetupRequest(req)
 
 	resp, err := http.DefaultClient.Do(req)
@@ -80,7 +83,10 @@ func (s *SWUpdater) upload(filename string) error {
 			err = closeErr
 		}
 	}()
-	return err
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("the upload was rejected with status: %s", resp.Status)
+	}
+	return nil
 }
 
 // waitForFinished waits for the SWUpdater process to finish by listening to a WebSocket connection.
@@ -164,8 +170,10 @@ func (s *SWUpdater) statusUpdate(status string) {
 // Update uploads a software image and waits for the update process to finish.
 // It takes a filename string and a timeout duration as parameters.
 // It returns an error if the upload fails, or if the operation times out.
-func (s *SWUpdater) Update(filename string, connectionTimeout, timeout time.Duration) error {
-	done := make(chan error)
+func (s *SWUpdater) Update(filename string, connectionTimeout, timeout time.Duration) (err error) {
+	// The channel is buffered, so waitForFinished can terminate even if
+	// Update already returned, e.g. after a timeout.
+	done := make(chan error, 1)
 	// Retry connection until successful or connectionTimeout occurs
 	online, err := s.waitForOnline(connectionTimeout)
 	if !online {
@@ -187,7 +195,11 @@ func (s *SWUpdater) Update(filename string, connectionTimeout, timeout time.Dura
 
 	select {
 	case err := <-done:
-		close(s.notifications) // Close the channel to signal the end of notifications
+		// waitForFinished returned, so nobody sends notifications anymore.
+		// Close the channel to signal the end of notifications.
+		if s.notifications != nil {
+			close(s.notifications)
+		}
 		if err != nil {
 			return fmt.Errorf("update failed: %w", err)
 		}
