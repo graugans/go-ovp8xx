@@ -2,8 +2,8 @@
 // README at: https://github.com/devcontainers/templates/tree/main/src/go
 {
 	"name": "Go",
-	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
-	"image": "mcr.microsoft.com/devcontainers/go:1.23",
+	// Debian stable (trixie) based Go image
+	"image": "mcr.microsoft.com/devcontainers/go:2-1.27-trixie",
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},
