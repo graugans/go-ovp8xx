@@ -1,6 +1,7 @@
 package pcic
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -146,9 +147,7 @@ func (c *Chunk) TimeStamp() time.Time {
 
 func (c *Chunk) SetTimestamp(value time.Time) {
 	c.timestampSec = uint32(value.Unix())
-	seconds := time.Unix(int64(c.timestampSec), 0)
-	c.timestampNSec = uint32(value.UnixNano() - seconds.UnixNano())
-	fmt.Printf("Seconds: %d Nanoseconds: %d\n", c.timestampSec, c.timestampNSec)
+	c.timestampNSec = uint32(value.Nanosecond())
 }
 
 // Bytes return the data the current Chunk is holding
@@ -156,11 +155,22 @@ func (c *Chunk) Bytes() []byte {
 	return c.data
 }
 
+// Metadata returns the JSON meta data of the Chunk.
+//
+// Only version 3 headers carry meta data, for all other chunks "{}" is returned.
+func (c *Chunk) Metadata() string {
+	return c.metadata
+}
+
 // MarshalBinary creates a binary representation of the Chunk
 //
 // The binary representation is encoded in the byte slice
 func (c *Chunk) MarshalBinary() (data []byte, err error) {
-	blob := make([]byte, offsetOfData+len(c.data))
+	headerSize := c.headerSize
+	if headerSize < offsetOfData {
+		headerSize = offsetOfData
+	}
+	blob := make([]byte, int(headerSize)+len(c.data))
 	binary.LittleEndian.PutUint32(
 		blob,
 		uint32(c.chunkType),
@@ -189,7 +199,10 @@ func (c *Chunk) MarshalBinary() (data []byte, err error) {
 		blob[offsetOfFormat:offsetOfTimeStamp],
 		uint32(c.dataFormat),
 	)
-	// We skip the timestamp for now, it is deprecated
+	binary.LittleEndian.PutUint32(
+		blob[offsetOfTimeStamp:offsetOfFrameCount],
+		c.timeStamp,
+	)
 	binary.LittleEndian.PutUint32(
 		blob[offsetOfFrameCount:offsetOfStatusCode],
 		c.frameCount,
@@ -207,8 +220,12 @@ func (c *Chunk) MarshalBinary() (data []byte, err error) {
 		c.timestampNSec,
 	)
 
-	// copy the data we keep
-	copy(blob[offsetOfData:], c.data)
+	// The meta data of a version 3 header is stored between the fixed header
+	// fields and the data
+	if headerSize > offsetOfData {
+		copy(blob[offsetOfData:headerSize], c.metadata)
+	}
+	copy(blob[headerSize:], c.data)
 	return blob, nil
 }
 
@@ -217,6 +234,13 @@ func (c *Chunk) MarshalBinary() (data []byte, err error) {
 // It copies the data from the input slice to comply with the BinaryUnmarshaler
 // interface.
 func (c *Chunk) UnmarshalBinary(data []byte) error {
+	return c.unmarshal(data, true)
+}
+
+// unmarshal parses a chunk from data. If copyData is false the chunk data
+// references the input slice instead of copying it. This is used when parsing
+// a frame, where the input buffer is owned by the frame anyway.
+func (c *Chunk) unmarshal(data []byte, copyData bool) error {
 	dataLen := uint32(len(data))
 	if dataLen < offsetOfData {
 		return errors.New("unable to parse an empty input")
@@ -243,6 +267,13 @@ func (c *Chunk) UnmarshalBinary(data []byte) error {
 	if c.headerSize < offsetOfData {
 		return fmt.Errorf("the chunk header size needs to be at minimum: %d", offsetOfData)
 	}
+	if c.headerSize > c.chunkSize {
+		return fmt.Errorf(
+			"the chunk header size %d exceeds the chunk size %d",
+			c.headerSize,
+			c.chunkSize,
+		)
+	}
 	c.headerVersion = binary.LittleEndian.Uint32(
 		data[offsetOfHeaderVersion : offsetOfHeaderVersion+4],
 	)
@@ -266,18 +297,14 @@ func (c *Chunk) UnmarshalBinary(data []byte) error {
 	c.dataHeight = binary.LittleEndian.Uint32(
 		data[offsetOfHeight : offsetOfHeight+4],
 	)
-	if (c.dataHeight * c.dataWidth) > (dataLen - c.headerSize) {
-		return fmt.Errorf(
-			"the length of the given data can not be smaller than the given data width and height multiplied",
-		)
-	}
 	c.dataFormat = DataFormat(binary.LittleEndian.Uint32(
 		data[offsetOfFormat : offsetOfFormat+4],
 	))
-	if c.dataFormat > FORMAT_MAX {
+	if c.dataFormat >= FORMAT_MAX {
 		return fmt.Errorf(
-			"the the data format does not match the range of valid data formats [0,%d]",
-			FORMAT_MAX,
+			"the data format %d does not match the range of valid data formats [0,%d]",
+			c.dataFormat,
+			FORMAT_MAX-1,
 		)
 	}
 
@@ -301,19 +328,30 @@ func (c *Chunk) UnmarshalBinary(data []byte) error {
 		data[offsetOfTimeStampNsec : offsetOfTimeStampNsec+4],
 	)
 
-	// Copy the data to this chunk
-	src := data[offsetOfData : offsetOfData+(c.chunkSize-c.headerSize)]
-	c.data = make([]byte, len(src))
-	copy(c.data, src)
+	// A version 3 header carries JSON meta data after the fixed header fields
+	c.metadata = "{}"
+	if c.headerSize > offsetOfData {
+		c.metadata = string(bytes.TrimRight(data[offsetOfData:c.headerSize], "\x00"))
+	}
 
-	if (c.dataWidth * c.dataHeight * byteSizeLUT[c.dataFormat]) != uint32(len(c.data)) {
+	// The data starts right after the header. Use 64 bit arithmetic to
+	// prevent an overflow of width * height * byte size.
+	src := data[c.headerSize:c.chunkSize:c.chunkSize]
+	expected := uint64(c.dataWidth) * uint64(c.dataHeight) * uint64(byteSizeLUT[c.dataFormat])
+	if expected != uint64(len(src)) {
 		return fmt.Errorf(
 			"a size mismatch detected, width (%d) times height (%d) does not equal the data size (%d) format: %d",
 			c.dataWidth,
 			c.dataHeight,
-			len(c.data),
+			len(src),
 			c.dataFormat,
 		)
+	}
+	if copyData {
+		c.data = make([]byte, len(src))
+		copy(c.data, src)
+	} else {
+		c.data = src
 	}
 	return nil
 }

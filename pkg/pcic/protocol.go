@@ -9,9 +9,7 @@ import (
 	"io"
 	"math/rand"
 	"net"
-	"regexp"
 	"strconv"
-	"strings"
 	"sync"
 )
 
@@ -19,9 +17,11 @@ type (
 	PCICClient struct {
 		reader        *bufio.Reader
 		writer        *bufio.Writer
+		closer        io.Closer
 		responseChans map[string]chan Response
-		mu            sync.Mutex
-		errRegEx      *regexp.Regexp
+		mu            sync.Mutex // protects responseChans
+		writeMu       sync.Mutex // serializes requests on the writer
+		maxFrameSize  int
 	}
 	PCICClientOption func(c *PCICClient) error
 )
@@ -47,10 +47,18 @@ const (
 	endMarker   string = "stop"
 )
 
-var (
-	resultTicket []byte = []byte{'0', '0', '0', '0'}
-	errorTicket  []byte = []byte{'0', '0', '0', '1'}
+const (
+	resultTicket       string = "0000"
+	errorTicket        string = "0001"
+	notificationTicket string = "0010"
+	// minResponseTicket is the lowest ticket number used for command responses
+	minResponseTicket int = 100
 )
+
+// DefaultMaxFrameSize is the default upper limit for the size of a single
+// PCIC message. It protects against huge allocations caused by a corrupted
+// length field.
+const DefaultMaxFrameSize int = 64 << 20
 
 type MessageHandler interface {
 	Result(Frame)
@@ -74,21 +82,38 @@ type Response struct {
 }
 
 func NewPCICClient(options ...PCICClientOption) (*PCICClient, error) {
-	var err error
 	pcic := &PCICClient{
 		responseChans: make(map[string]chan Response),
-	}
-	pcic.errRegEx, err = regexp.Compile(`(\d{9})(?::(.*))?`)
-	if err != nil {
-		return nil, fmt.Errorf("unable to compile the error regex: %v", err)
+		maxFrameSize:  DefaultMaxFrameSize,
 	}
 	// Apply options
 	for _, opt := range options {
-		if err = opt(pcic); err != nil {
+		if err := opt(pcic); err != nil {
 			return nil, err
 		}
 	}
-	return pcic, err
+	return pcic, nil
+}
+
+// WithMaxFrameSize sets the maximum accepted size in bytes of a single PCIC
+// message. Messages announcing a bigger length are rejected.
+func WithMaxFrameSize(size int) PCICClientOption {
+	return func(c *PCICClient) error {
+		if size < minimumContentLength {
+			return fmt.Errorf("the maximum frame size must be at least %d", minimumContentLength)
+		}
+		c.maxFrameSize = size
+		return nil
+	}
+}
+
+// Close closes the underlying connection if the client owns one, e.g. when
+// created with WithTCPClient.
+func (p *PCICClient) Close() error {
+	if p.closer == nil {
+		return nil
+	}
+	return p.closer.Close()
 }
 
 func WithBufioReaderWriter(com *bufio.ReadWriter) PCICClientOption {
@@ -110,6 +135,7 @@ func WithTCPClient(hostname string, port uint16) PCICClientOption {
 		}
 		c.reader = bufio.NewReader(conn)
 		c.writer = bufio.NewWriter(conn)
+		c.closer = conn
 		return nil
 	}
 }
@@ -131,199 +157,221 @@ func (p *PCICClient) generateTicket(replyChan chan Response) string {
 	}
 }
 
+// ProcessIncomming reads and dispatches a single PCIC message.
+//
+// Asynchronous results, errors and notifications are passed to the handler,
+// responses to commands are forwarded to the pending Send call. The handler is
+// only called for messages which could be parsed successfully.
+//
+// The frames passed to the handler own their memory, the chunk data is not
+// reused by subsequent calls.
 func (p *PCICClient) ProcessIncomming(handler MessageHandler) error {
 	reader := p.reader
 	if reader == nil {
 		return errors.New("no bufio.Reader provided, please instantiate the object")
 	}
-	header := make([]byte, headerSize)
-	_, err := io.ReadFull(reader, header)
-	if err != nil {
+	var header [headerSize]byte
+	if _, err := io.ReadFull(reader, header[:]); err != nil {
 		return err
 	}
 	firstTicket := header[:ticketFieldLength]
-	ticketStr := string(firstTicket)
-
 	secondTicket := header[secondTicketOffset:dataOffset]
 	if !bytes.Equal(firstTicket, secondTicket) {
-		return fmt.Errorf("mismatch in the tickets %s != %s ",
-			string(ticketStr),
-			string(secondTicket),
-		)
+		return fmt.Errorf("mismatch in the tickets %s != %s ", firstTicket, secondTicket)
 	}
-	lengthBuffer := string(header[lengthOffset:secondTicketOffset])
-	if lengthBuffer[0] != 'L' {
-		return fmt.Errorf("the length field does not start with 'L': %v", lengthBuffer)
+	lengthField := header[lengthOffset:delimiterOffset]
+	if lengthField[0] != 'L' {
+		return fmt.Errorf("the length field does not start with 'L': %q", lengthField)
 	}
-	length := 0
-	_, err = fmt.Sscanf(lengthBuffer, "L%09d\r\n", &length)
-	if err != nil {
-		return err
+	length, ok := parseDecimal(lengthField[1:])
+	if !ok {
+		return fmt.Errorf("the length field is not a decimal number: %q", lengthField)
+	}
+	if header[delimiterOffset] != '\r' || header[delimiterOffset+1] != '\n' {
+		return errors.New("the length field is not terminated by CRLF")
 	}
 	if length < minimumContentLength {
 		return errors.New("the length information is too short")
 	}
+	if length > p.maxFrameSize {
+		return fmt.Errorf("the length %d exceeds the maximum frame size of %d", length, p.maxFrameSize)
+	}
 	data := make([]byte, length-ticketFieldLength)
-	if _, err = io.ReadFull(reader, data); err != nil {
+	if _, err := io.ReadFull(reader, data); err != nil {
 		return err
 	}
-	trailer := data[len(data)-delimiterFieldLength:]
-	if !bytes.Equal(trailer, []byte{'\r', '\n'}) {
+	if !bytes.HasSuffix(data, []byte{'\r', '\n'}) {
 		return errors.New("invalid trailer detected")
 	}
-	var ticketNum = 0
-	if ticketStr != "0000" {
-		ticketNum, err = strconv.Atoi(strings.TrimLeft(ticketStr, "0"))
+	content := data[:len(data)-delimiterFieldLength]
+
+	ticket := string(firstTicket)
+	switch ticket {
+	case resultTicket:
+		frame, err := asyncResultParser(content)
 		if err != nil {
-			return fmt.Errorf("unable to convert the ticket number %s to an integer", ticketStr)
+			return err
 		}
-	}
-	if ticketNum > 100 {
-		err := p.responseParser(ticketStr, data)
-		if err != nil {
-			return fmt.Errorf("unable to parse the response: %w", err)
-		}
-		return nil
-	} else if bytes.Equal(resultTicket, firstTicket) {
-		frame, err := asyncResultParser(data)
 		handler.Result(frame)
-		return err
-	} else if bytes.Equal(errorTicket, firstTicket) {
-		errorStatus, err := p.errorParser(string(data[:len(data)-2]))
-		handler.Error(errorStatus)
-		return err
+		return nil
+	case errorTicket:
+		id, msg, err := parseStatusMessage(content)
+		if err != nil {
+			return fmt.Errorf("unable to parse the error message: %w", err)
+		}
+		handler.Error(ErrorMessage{ID: id, Message: msg})
+		return nil
+	case notificationTicket:
+		id, msg, err := parseStatusMessage(content)
+		if err != nil {
+			return fmt.Errorf("unable to parse the notification message: %w", err)
+		}
+		handler.Notification(NotificationMessage{ID: id, Message: msg})
+		return nil
 	}
-	return fmt.Errorf("unknown ticket received: %s", string(firstTicket))
+	if ticketNum, ok := parseDecimal(firstTicket); ok && ticketNum >= minResponseTicket {
+		p.dispatchResponse(ticket, content)
+		return nil
+	}
+	return fmt.Errorf("unknown ticket received: %q", ticket)
 }
 
-func (p *PCICClient) Send(ctx context.Context, data []byte) ([]byte, error) {
-	var res []byte
-	if p.writer == nil {
-		return res, errors.New("no bufio.Writer provided, please instantiate the object")
+// parseDecimal parses an unsigned decimal number consisting only of the digits 0-9.
+func parseDecimal(b []byte) (int, bool) {
+	if len(b) == 0 {
+		return 0, false
 	}
-	respChan := make(chan Response)
-	// Let's generate a random ticket number
-	ticket := p.generateTicket(respChan)
+	n := 0
+	for _, c := range b {
+		if c < '0' || c > '9' {
+			return 0, false
+		}
+		n = n*10 + int(c-'0')
+	}
+	return n, true
+}
 
-	defer func() {
-		p.mu.Lock()
-		delete(p.responseChans, ticket)
-		p.mu.Unlock()
-	}()
-
-	// Create a new buffer to aggregate the message
-	var buf bytes.Buffer
-	var delimter = []byte("\r\n")
-	// Convert ticket to a 4-digit string and then to bytes
-	ticketBytes := []byte(ticket)
-	buf.Write(ticketBytes)
+// Send sends a command to the device and waits for the response or until the
+// context is done. It is safe to call Send from multiple goroutines, while
+// ProcessIncomming is running in another goroutine.
+func (p *PCICClient) Send(ctx context.Context, data []byte) ([]byte, error) {
+	if p.writer == nil {
+		return nil, errors.New("no bufio.Writer provided, please instantiate the object")
+	}
 	// A Command message is composed like this
 	// <ticket><length>CRLF<ticket><content>CRLF
 	// <ticket> is a 4-digit number in the range 100-9999
 	// <length> is a character string starting with an 'L' followed by 9 digits
 	// interpreted as a decimal value. The number is the length of data that follows
 	// <content> is the actual data that is being sent
-	length := len(ticketBytes) /*<ticket>*/ + len(data) + 2 /*CRLF*/
-	lengthStr := fmt.Sprintf("L%09d", length)
-	lengthBytes := []byte(lengthStr)
-	buf.Write(lengthBytes)
-	buf.Write(delimter)
-	buf.Write(ticketBytes)
-	buf.Write(data)
-	buf.Write(delimter)
-
-	// Write the buffer to the underlying writer
-	_, err := p.writer.Write(buf.Bytes())
-	if err != nil {
-		return res, fmt.Errorf("unable to write to the buffer: %w", err)
+	length := ticketFieldLength + len(data) + delimiterFieldLength
+	if length > 999999999 {
+		return nil, fmt.Errorf("the command is too long: %d bytes", len(data))
 	}
-	// This is necessary to flush the buffer to the underlying writer
-	// Otherwise, the data will not be sent over the network
-	err = p.writer.Flush()
-	if err != nil {
-		return res, fmt.Errorf("unable to flush to the buffer: %w", err)
+
+	// The channel is buffered, so the receiver never blocks on a response
+	// which arrives after the request has timed out.
+	respChan := make(chan Response, 1)
+	ticket := p.generateTicket(respChan)
+	defer func() {
+		p.mu.Lock()
+		delete(p.responseChans, ticket)
+		p.mu.Unlock()
+	}()
+
+	if err := p.writeRequest(ticket, length, data); err != nil {
+		return nil, err
 	}
 
 	// Wait for the response or timeout
 	select {
 	case resp := <-respChan:
-		res = resp.Data
+		return resp.Data, nil
 	case <-ctx.Done():
-		return res, fmt.Errorf("request with ticket: %s timed out or canceled", ticket)
+		return nil, fmt.Errorf("request with ticket: %s timed out or canceled: %w", ticket, ctx.Err())
 	}
-
-	return res, nil
 }
 
-func (p *PCICClient) responseParser(ticket string, data []byte) error {
-	var err error
-	res := Response{}
-	if len(data) <= delimiterFieldLength {
-		return fmt.Errorf("the data is too short to be a valid frame: %d", len(data))
-	}
-	res.Ticket = ticket
-	res.Data = data[:len(data)-delimiterFieldLength]
+func (p *PCICClient) writeRequest(ticket string, length int, data []byte) error {
+	header := make([]byte, 0, headerSize)
+	header = append(header, ticket...)
+	header = fmt.Appendf(header, "L%09d\r\n", length)
+	header = append(header, ticket...)
 
+	p.writeMu.Lock()
+	defer p.writeMu.Unlock()
+	if _, err := p.writer.Write(header); err != nil {
+		return fmt.Errorf("unable to write to the buffer: %w", err)
+	}
+	if _, err := p.writer.Write(data); err != nil {
+		return fmt.Errorf("unable to write to the buffer: %w", err)
+	}
+	if _, err := p.writer.WriteString("\r\n"); err != nil {
+		return fmt.Errorf("unable to write to the buffer: %w", err)
+	}
+	// This is necessary to flush the buffer to the underlying writer
+	// Otherwise, the data will not be sent over the network
+	if err := p.writer.Flush(); err != nil {
+		return fmt.Errorf("unable to flush to the buffer: %w", err)
+	}
+	return nil
+}
+
+// dispatchResponse forwards a command response to the waiting Send call.
+// Responses for unknown tickets, e.g. for requests which already timed out,
+// are dropped.
+func (p *PCICClient) dispatchResponse(ticket string, content []byte) {
 	p.mu.Lock()
-	if ch, ok := p.responseChans[ticket]; ok {
-		ch <- res
-	}
+	ch, ok := p.responseChans[ticket]
 	p.mu.Unlock()
-	return err
+	if !ok {
+		return
+	}
+	select {
+	case ch <- Response{Ticket: ticket, Data: content}:
+	default:
+		// A response for this ticket is already pending, drop the duplicate
+	}
 }
 
-// errorParser is a method of the PCICClient struct that parses the error message from the given data string.
-// The function returns the parsed error status and any error that occurred during parsing.
-func (p *PCICClient) errorParser(data string) (ErrorMessage, error) {
-	var err error
-	errorStatus := ErrorMessage{}
-	if p.errRegEx == nil {
-		return errorStatus, errors.New("no error regex provided, please instantiate the object")
+// parseStatusMessage parses error and notification messages. Both are
+// composed of a 9 digit ID followed by a colon and a non-empty message,
+// e.g. "000103012:{...}".
+func parseStatusMessage(content []byte) (int, string, error) {
+	const idLength = 9
+	if len(content) < idLength {
+		return 0, "", fmt.Errorf("the message is too short: %q", content)
 	}
-	// Find the matches
-	matches := p.errRegEx.FindStringSubmatch(data)
-	if len(matches) < 2 {
-		return errorStatus, fmt.Errorf("unable to parse the error message: %d, %s", len(matches), string(data))
+	id, ok := parseDecimal(content[:idLength])
+	if !ok {
+		return 0, "", fmt.Errorf("the message does not start with a 9 digit ID: %q", content)
 	}
-	idStr := strings.TrimLeft(matches[1], "0")
-	if idStr == "" {
-		idStr = "0" // Handle the case where the string is all zeros
+	rest := content[idLength:]
+	if len(rest) < 2 || rest[0] != ':' {
+		return id, "", fmt.Errorf("a malformed message was received: %q", content)
 	}
-	errorStatus.ID, err = strconv.Atoi(idStr)
-	if len(matches) == 3 {
-		errorStatus.Message = matches[2]
-		if len(errorStatus.Message) == 0 {
-			return errorStatus, fmt.Errorf("a malformed error message was received: %s", data)
-		}
-	}
-	return errorStatus, err
+	return id, string(rest[1:]), nil
 }
 
-func asyncResultParser(data []byte) (Frame, error) {
+// asyncResultParser parses the content of an asynchronous result message,
+// which is enclosed by the start and stop markers. The chunks reference the
+// content slice, which must not be reused by the caller.
+func asyncResultParser(content []byte) (Frame, error) {
 	frame := Frame{}
-	var err error
-	if len(data) <= delimiterFieldLength {
-		return frame, fmt.Errorf("the data is too short to be a valid frame: %d", len(data))
+	if len(content) < len(startMarker)+len(endMarker) {
+		return frame, fmt.Errorf("the data is too short to be a valid frame: %d bytes", len(content))
 	}
-	contentDecorated := data[:len(data)-delimiterFieldLength]
-	if len(contentDecorated)-len(endMarker) < 0 {
-		return frame, fmt.Errorf("the data is too short to be a valid frame: %d: content: %s", len(data), string(data))
+	if !bytes.HasPrefix(content, []byte(startMarker)) || !bytes.HasSuffix(content, []byte(endMarker)) {
+		return frame, errors.New("the frame is not enclosed by the start and stop markers")
 	}
-	content := contentDecorated[len(endMarker) : len(contentDecorated)-len(endMarker)]
-	if len(content) == 0 {
-		// no content is available
-		return frame, nil
-	}
-	remainingBytes := len(content)
-	offset := 0
-	for remainingBytes > 0 {
+	content = content[len(startMarker) : len(content)-len(endMarker)]
+	for len(content) > 0 {
 		c := Chunk{}
-		if err := c.UnmarshalBinary(content[offset:]); err != nil {
+		if err := c.unmarshal(content, false); err != nil {
 			return frame, err
 		}
 		frame.Chunks = append(frame.Chunks, c)
-		offset += c.Size()
-		remainingBytes -= c.Size()
+		content = content[c.Size():]
 	}
-	return frame, err
+	return frame, nil
 }
