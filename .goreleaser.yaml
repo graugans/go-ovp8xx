@@ -1,4 +1,9 @@
 # .goreleaser.yaml
+# The release is driven by go-semantic-release/hooks-goreleaser which embeds
+# GoReleaser v2.3.2. Keep this file compatible with that version, e.g. use
+# archives.format instead of archives.formats (introduced in v2.6).
+version: 2
+
 env_files:
   gitlab_token: ~/nope
 
@@ -46,7 +51,7 @@ checksum:
 sboms:
   - artifacts: archive
 snapshot:
-  name_template: "{{ incpatch .Version }}-next"
+  version_template: "{{ incpatch .Version }}-next"
 changelog:
   sort: asc
   filters:
