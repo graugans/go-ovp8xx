@@ -1,6 +1,7 @@
 package ovp8xx
 
 import (
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -52,5 +53,46 @@ func TestIsAvailableStopsPollingAfterTimeout(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
 	if after := requests.Load(); after != before {
 		t.Errorf("polling continued after IsAvailable returned: %d -> %d requests", before, after)
+	}
+}
+
+func TestClientURL(t *testing.T) {
+	tests := []struct{ host, want string }{
+		{"192.168.0.69", "http://192.168.0.69/api/rpc/v1/com.ifm.efector/"},
+		{"192.168.0.69:8080", "http://192.168.0.69:8080/api/rpc/v1/com.ifm.efector/"},
+		{"ovp.local", "http://ovp.local/api/rpc/v1/com.ifm.efector/"},
+		{"::1", "http://[::1]/api/rpc/v1/com.ifm.efector/"},
+		{"fe80::1%eth0", "http://[fe80::1%25eth0]/api/rpc/v1/com.ifm.efector/"},
+		{"[::1]:8080", "http://[::1]:8080/api/rpc/v1/com.ifm.efector/"},
+	}
+	for _, tt := range tests {
+		c := NewClient(WithHost(tt.host))
+		if c.url != tt.want {
+			t.Errorf("host %q: got %q, want %q", tt.host, c.url, tt.want)
+		}
+	}
+	d := NewClient(WithHost("::1")).GetDiagnosticClient()
+	if want := "http://[::1]/api/rpc/v1/com.ifm.diagnostic/"; d.url != want {
+		t.Errorf("diagnostic client: got %q, want %q", d.url, want)
+	}
+}
+
+func TestIsAvailableIPv6(t *testing.T) {
+	l, err := net.Listen("tcp", "[::1]:0")
+	if err != nil {
+		t.Skip("IPv6 loopback not available:", err)
+	}
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/xml")
+		_, _ = w.Write([]byte(`<?xml version="1.0"?><methodResponse><params><param><value><string>` +
+			`{"device":{"diagnostic":{"confInitStages":["device"]}}}</string></value></param></params></methodResponse>`))
+	}))
+	srv.Listener = l
+	srv.Start()
+	t.Cleanup(srv.Close)
+	// The host is given as "[::1]:port", as a user would pass it on the command line
+	client := NewClient(WithHost(l.Addr().String()))
+	if ok, err := client.IsAvailable(2 * time.Second); !ok || err != nil {
+		t.Fatalf("expected the device to be reachable via IPv6, got %v, %v", ok, err)
 	}
 }

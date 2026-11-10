@@ -15,7 +15,7 @@ import (
 
 // newFakeSWUpdate starts a fake SWUpdate service. The upload endpoint answers
 // with uploadStatus. After a successful upload the websocket reports success.
-func newFakeSWUpdate(t *testing.T, uploadStatus int) (host string, port uint16) {
+func newFakeSWUpdate(t *testing.T, uploadStatus int, listener net.Listener) (host string, port uint16) {
 	t.Helper()
 	uploaded := make(chan struct{}, 1)
 	upgrader := websocket.Upgrader{}
@@ -40,7 +40,11 @@ func newFakeSWUpdate(t *testing.T, uploadStatus int) (host string, port uint16) 
 		// keep the connection open until the client closes it
 		_, _, _ = ws.ReadMessage()
 	})
-	srv := httptest.NewServer(mux)
+	srv := httptest.NewUnstartedServer(mux)
+	if listener != nil {
+		srv.Listener = listener
+	}
+	srv.Start()
 	t.Cleanup(srv.Close)
 	h, p, err := net.SplitHostPort(srv.Listener.Addr().String())
 	if err != nil {
@@ -60,7 +64,7 @@ func firmwareFile(t *testing.T) string {
 }
 
 func TestUpdateWithoutNotifications(t *testing.T) {
-	host, port := newFakeSWUpdate(t, http.StatusOK)
+	host, port := newFakeSWUpdate(t, http.StatusOK, nil)
 	swu := NewSWUpdater(host, port, nil)
 	if err := swu.Update(firmwareFile(t), time.Second, 5*time.Second); err != nil {
 		t.Fatalf("expected a successful update, got: %v", err)
@@ -68,7 +72,7 @@ func TestUpdateWithoutNotifications(t *testing.T) {
 }
 
 func TestUpdateWithNotifications(t *testing.T) {
-	host, port := newFakeSWUpdate(t, http.StatusOK)
+	host, port := newFakeSWUpdate(t, http.StatusOK, nil)
 	notifications := make(chan SWUpdaterNotification, 100)
 	swu := NewSWUpdater(host, port, notifications)
 	if err := swu.Update(firmwareFile(t), time.Second, 5*time.Second); err != nil {
@@ -84,7 +88,7 @@ func TestUpdateWithNotifications(t *testing.T) {
 }
 
 func TestUpdateUploadRejected(t *testing.T) {
-	host, port := newFakeSWUpdate(t, http.StatusBadRequest)
+	host, port := newFakeSWUpdate(t, http.StatusBadRequest, nil)
 	swu := NewSWUpdater(host, port, nil)
 	start := time.Now()
 	err := swu.Update(firmwareFile(t), time.Second, 5*time.Second)
@@ -93,5 +97,34 @@ func TestUpdateUploadRejected(t *testing.T) {
 	}
 	if time.Since(start) > 2*time.Second {
 		t.Errorf("a rejected upload must fail immediately, not after the timeout: %v", err)
+	}
+}
+
+func TestURLs(t *testing.T) {
+	tests := []struct{ host, upload, status string }{
+		{"192.168.0.69", "http://192.168.0.69:8080/upload", "ws://192.168.0.69:8080/ws"},
+		{"::1", "http://[::1]:8080/upload", "ws://[::1]:8080/ws"},
+		{"fe80::1%eth0", "http://[fe80::1%25eth0]:8080/upload", "ws://[fe80::1%25eth0]:8080/ws"},
+	}
+	for _, tt := range tests {
+		s := NewSWUpdater(tt.host, 8080, nil)
+		if s.urlUpload != tt.upload || s.urlStatus != tt.status {
+			t.Errorf("host %q: got %q and %q, want %q and %q", tt.host, s.urlUpload, s.urlStatus, tt.upload, tt.status)
+		}
+	}
+}
+
+func TestUpdateIPv6(t *testing.T) {
+	l, err := net.Listen("tcp", "[::1]:0")
+	if err != nil {
+		t.Skip("IPv6 loopback not available:", err)
+	}
+	host, port := newFakeSWUpdate(t, http.StatusOK, l)
+	if host != "::1" {
+		t.Fatalf("unexpected host %q", host)
+	}
+	swu := NewSWUpdater(host, port, nil)
+	if err := swu.Update(firmwareFile(t), time.Second, 5*time.Second); err != nil {
+		t.Fatalf("expected a successful update via IPv6, got: %v", err)
 	}
 }

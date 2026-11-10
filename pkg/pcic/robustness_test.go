@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"net"
 	"runtime"
 	"testing"
 
@@ -242,4 +243,28 @@ func TestRoundtripHeaderV3WithMetadata(t *testing.T) {
 	out, err := c.MarshalBinary()
 	assert.NoError(t, err)
 	assert.Equal(t, data, out, "marshalling must reproduce the input")
+}
+
+func TestTCPClientIPv6(t *testing.T) {
+	l, err := net.Listen("tcp", "[::1]:0")
+	if err != nil {
+		t.Skip("IPv6 loopback not available:", err)
+	}
+	defer func() { _ = l.Close() }()
+	go func() {
+		for {
+			c, err := l.Accept()
+			if err != nil {
+				return
+			}
+			_ = c.Close()
+		}
+	}()
+	port := uint16(l.Addr().(*net.TCPAddr).Port)
+	for _, host := range []string{"::1", "[::1]"} {
+		p, err := pcic.NewPCICClient(pcic.WithTCPClient(host, port))
+		if assert.NoError(t, err, "host %q", host) {
+			assert.NoError(t, p.Close())
+		}
+	}
 }

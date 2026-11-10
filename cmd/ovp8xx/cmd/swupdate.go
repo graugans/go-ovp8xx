@@ -5,7 +5,9 @@ package cmd
 
 import (
 	"fmt"
+	"net"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 
@@ -41,9 +43,8 @@ func swupdateCommand(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("cannot get timeout: %w", err)
 	}
 
-	fmt.Printf("Updating firmware on %s:%d with file %s (%v)\n",
-		host,
-		port,
+	fmt.Printf("Updating firmware on %s with file %s (%v)\n",
+		net.JoinHostPort(host, strconv.Itoa(int(port))),
 		filepath.Base(filename),
 		timeout,
 	)

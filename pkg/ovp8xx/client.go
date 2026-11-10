@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/netip"
+	"net/url"
 	"slices"
 	"time"
 )
@@ -37,8 +39,20 @@ func NewClient(opts ...ClientOption) *Client {
 	for _, opt := range opts {
 		opt(client)
 	}
-	client.url = fmt.Sprintf("http://%s/api/rpc/v1/com.ifm.efector/", client.host)
+	client.url = rpcURL(client.host, "/api/rpc/v1/com.ifm.efector/")
 	return client
+}
+
+// rpcURL builds the URL of an XML-RPC endpoint. The host may be a hostname,
+// an IPv4 or IPv6 address (optionally with a zone, e.g. "fe80::1%eth0") or any
+// of these combined with a port, e.g. "[::1]:8080".
+func rpcURL(host, path string) string {
+	// A bare IPv6 address needs to be enclosed in brackets
+	if addr, err := netip.ParseAddr(host); err == nil && addr.Is6() {
+		host = "[" + host + "]"
+	}
+	u := url.URL{Scheme: "http", Host: host, Path: path}
+	return u.String()
 }
 
 // WithHost sets the host for the OVP8xx client.
@@ -53,7 +67,7 @@ func WithHost(host string) ClientOption {
 func (device *Client) GetDiagnosticClient() *DiagnosisClient {
 	client := &DiagnosisClient{}
 	client.host = device.host
-	client.url = fmt.Sprintf("http://%s/api/rpc/v1/com.ifm.diagnostic/", client.host)
+	client.url = rpcURL(client.host, "/api/rpc/v1/com.ifm.diagnostic/")
 	return client
 }
 

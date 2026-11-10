@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -129,6 +130,8 @@ func WithBufioReaderWriter(com *bufio.ReadWriter) PCICClientOption {
 // If an error occurs during the connection establishment, it will be handled and returned.
 func WithTCPClient(hostname string, port uint16) PCICClientOption {
 	return func(c *PCICClient) error {
+		// Accept IPv6 addresses with and without brackets, e.g. "[::1]" and "::1"
+		hostname = strings.TrimSuffix(strings.TrimPrefix(hostname, "["), "]")
 		conn, err := net.Dial("tcp", net.JoinHostPort(hostname, strconv.Itoa(int(port))))
 		if err != nil {
 			return err
