@@ -27,7 +27,7 @@ func removeCommand(cmd *cobra.Command, args []string) error {
 // removeCmd represents the get command
 var removeCmd = &cobra.Command{
 	Use:   "remove <pointer>",
-	Short: "remove the OVP8xx",
+	Short: "remove the device",
 	RunE:  removeCommand,
 	Args: func(cmd *cobra.Command, args []string) error {
 		if len(args) != 1 {

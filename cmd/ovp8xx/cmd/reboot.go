@@ -33,7 +33,7 @@ func rebootCommand(cmd *cobra.Command, args []string) error {
 // rebootCmd represents the get command
 var rebootCmd = &cobra.Command{
 	Use:   "reboot",
-	Short: "Reboot the OVP8xx",
+	Short: "Reboot the device",
 	RunE:  rebootCommand,
 }
 

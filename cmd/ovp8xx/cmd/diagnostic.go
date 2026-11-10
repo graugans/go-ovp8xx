@@ -62,7 +62,7 @@ func diagnosticGetFilterSchemaCommand(cmd *cobra.Command, args []string) error {
 
 var diagnosticCmd = &cobra.Command{
 	Use:   "diagnostic",
-	Short: "Interact with diagnostic subsystem of the OVP8xx",
+	Short: "Interact with diagnostic subsystem of the device",
 }
 
 var diagnosticGetFilteredCmd = &cobra.Command{
