@@ -21,10 +21,18 @@ func NewConfig(opts ...ConfigOption) *Config {
 	return config
 }
 
-func WitJSONString(json string) ConfigOption {
+// WithJSONString sets the configuration from a JSON document.
+func WithJSONString(json string) ConfigOption {
 	return func(c *Config) {
 		c.JSON = json
 	}
+}
+
+// WitJSONString sets the configuration from a JSON document.
+//
+// Deprecated: Use WithJSONString instead.
+func WitJSONString(json string) ConfigOption {
+	return WithJSONString(json)
 }
 
 func (c Config) String() string {
