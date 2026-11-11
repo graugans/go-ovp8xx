@@ -216,19 +216,23 @@ Within in your Go project get the ovp8xx package first
 go get github.com/graugans/go-ovp8xx/v2
 ```
 
-The following example will query the software Version of your OVP8xx. This assumes that either the OVP8xx is using the default IP address of `192.168.0.69` or the environment variable `OVP8XX_IP` is set. In case you want to set the IP in code please use `ovp8xx.NewClient(ovp8xx.WithHost("192.168.0.69"))` to construct the client.
+The following example will query the software Version of your OVP8xx. Without `ovp8xx.WithHost(...)` the client connects to the default IP address `192.168.0.69` (`ovp8xx.DefaultHost`). The library does not read any environment variables. To resolve the host the same way as the CLI does (`OVP8XX_IP` and the variant specific variables such as `OVP9XX_IP`), use the `variant` package:
 
 ```go
 package main
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/graugans/go-ovp8xx/v2/pkg/ovp8xx"
+	"github.com/graugans/go-ovp8xx/v2/pkg/variant"
 )
 
 func main() {
-	o3r := ovp8xx.NewClient()
+	o3r := ovp8xx.NewClient(
+		ovp8xx.WithHost(variant.Default.DefaultHost(os.Getenv)),
+	)
 	config, err := o3r.Get([]string{"/device/swVersion"})
 	if err != nil {
 		fmt.Println(err)

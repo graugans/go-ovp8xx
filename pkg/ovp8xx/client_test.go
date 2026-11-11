@@ -96,3 +96,10 @@ func TestIsAvailableIPv6(t *testing.T) {
 		t.Fatalf("expected the device to be reachable via IPv6, got %v, %v", ok, err)
 	}
 }
+
+func TestNewClientIgnoresEnvironment(t *testing.T) {
+	t.Setenv("OVP8XX_IP", "10.0.0.1")
+	if c := NewClient(); c.host != DefaultHost {
+		t.Errorf("expected %q, got %q", DefaultHost, c.host)
+	}
+}
