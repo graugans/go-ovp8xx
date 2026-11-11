@@ -56,6 +56,10 @@ const (
 	minResponseTicket int = 100
 )
 
+// DefaultPort is the TCP port of the PCIC interface of the first application
+// on a factory default device.
+const DefaultPort uint16 = 50010
+
 // DefaultMaxFrameSize is the default upper limit for the size of a single
 // PCIC message. It protects against huge allocations caused by a corrupted
 // length field.

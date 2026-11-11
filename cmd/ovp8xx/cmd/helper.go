@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/graugans/go-ovp8xx/v2/pkg/pcic"
 	"github.com/spf13/cobra"
 )
 
@@ -60,7 +61,7 @@ func NewHelper(cmd *cobra.Command) (helperConfig, error) {
 	// Port can be empty
 	conf.port, err = cmd.Flags().GetUint16("port")
 	if err != nil {
-		conf.port = 50010
+		conf.port = pcic.DefaultPort
 	}
 
 	return conf, nil

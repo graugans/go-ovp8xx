@@ -214,7 +214,7 @@ var pcicCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(pcicCmd)
-	pcicCmd.Flags().Uint16("port", 50010, "The port to connect to")
+	pcicCmd.Flags().Uint16("port", pcic.DefaultPort, "The port to connect to")
 	pcicCmd.Flags().StringSlice("cmd", []string{}, "Commands to be send to the device, can be specified multiple times. All commands will be executed in order")
 	pcicCmd.Flags().Bool("dump", false, "Dump frame and chunk data")
 	pcicCmd.Flags().StringVar(&templateString, "template", "", "Custom template for dumping frame and chunk data")
