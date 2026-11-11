@@ -22,9 +22,14 @@ type (
 	}
 )
 
+// DefaultHost is the factory default IP address of the device.
+const DefaultHost = "192.168.0.69"
+
 // NewClient creates a new OVP8xx client with the provided options.
 // The opts parameter is a variadic parameter that allows specifying
-// multiple client options.
+// multiple client options. Without WithHost the client connects to
+// DefaultHost. The environment is not consulted; use the variant package to
+// resolve the host from environment variables.
 // Example usage:
 //
 //	client := NewClient(WithHost("192.168.47.11"))
@@ -32,7 +37,7 @@ type (
 func NewClient(opts ...ClientOption) *Client {
 	// Initialise with default values
 	client := &Client{
-		host: GetEnv("OVP8XX_IP", "192.168.0.69"),
+		host: DefaultHost,
 	}
 
 	// Apply options
