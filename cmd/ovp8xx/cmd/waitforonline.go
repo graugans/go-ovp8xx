@@ -4,6 +4,7 @@ Copyright © 2024 Christian Ege <ch@ege.io>
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -28,9 +29,10 @@ func waitForOnlineCommand(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	timeOutDuration := time.Duration(timeout) * time.Second
+	ctx, cancel := context.WithTimeout(cmd.Context(), time.Duration(timeout)*time.Second)
+	defer cancel()
 	if ok, err = o3r.IsAvailable(
-		timeOutDuration,
+		ctx,
 		ovp8xx.AndPortsAreOnline(),
 	); err != nil {
 		return err

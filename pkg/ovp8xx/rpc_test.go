@@ -1,12 +1,14 @@
 package ovp8xx
 
 import (
+	"context"
 	"encoding/xml"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -58,6 +60,7 @@ const (
 )
 
 func TestRPCMethods(t *testing.T) {
+	ctx := context.Background()
 	const reply = `{"device":{"name":"test"}}`
 	conf := *NewConfig(WitJSONString(`{"a":1}`))
 
@@ -67,43 +70,43 @@ func TestRPCMethods(t *testing.T) {
 		want rpcCall
 	}{
 		{"Get", func(c *Client) (string, error) {
-			cfg, err := c.Get([]string{"/device"})
+			cfg, err := c.Get(ctx, []string{"/device"})
 			return cfg.String(), err
 		}, rpcCall{efectorPath, "get", []string{"/device"}}},
 		{"Set", func(c *Client) (string, error) {
-			return "", c.Set(conf)
+			return "", c.Set(ctx, conf)
 		}, rpcCall{efectorPath, "set", []string{conf.String()}}},
 		{"GetInit", func(c *Client) (string, error) {
-			cfg, err := c.GetInit()
+			cfg, err := c.GetInit(ctx)
 			return cfg.String(), err
 		}, rpcCall{efectorPath, "getInit", nil}},
 		{"SaveInit all", func(c *Client) (string, error) {
-			return "", c.SaveInit(nil)
+			return "", c.SaveInit(ctx, nil)
 		}, rpcCall{efectorPath, "saveInit", nil}},
 		{"SaveInit pointers", func(c *Client) (string, error) {
-			return "", c.SaveInit([]string{"/device", "/ports"})
+			return "", c.SaveInit(ctx, []string{"/device", "/ports"})
 		}, rpcCall{efectorPath, "saveInit", []string{"/device", "/ports"}}},
 		{"FactoryReset", func(c *Client) (string, error) {
-			return "", c.FactoryReset(true)
+			return "", c.FactoryReset(ctx, true)
 		}, rpcCall{efectorPath, "factoryReset", []string{"1"}}},
 		{"GetSchema", func(c *Client) (string, error) {
-			return c.GetSchema([]string{"/device"})
+			return c.GetSchema(ctx, []string{"/device"})
 		}, rpcCall{efectorPath, "getSchema", []string{"/device"}}},
 		{"Reboot", func(c *Client) (string, error) {
-			return "", c.Reboot()
+			return "", c.Reboot(ctx)
 		}, rpcCall{efectorPath, "reboot", nil}},
 		{"RebootToSWUpdate", func(c *Client) (string, error) {
-			return "", c.RebootToSWUpdate()
+			return "", c.RebootToSWUpdate(ctx)
 		}, rpcCall{efectorPath, "rebootToRecovery", nil}},
 		{"Remove", func(c *Client) (string, error) {
-			return "", c.Remove("/applications/instances/app0")
+			return "", c.Remove(ctx, "/applications/instances/app0")
 		}, rpcCall{efectorPath, "remove", []string{"/applications/instances/app0"}}},
 		{"GetFiltered", func(c *Client) (string, error) {
-			cfg, err := c.GetDiagnosticClient().GetFiltered(conf)
+			cfg, err := c.GetDiagnosticClient().GetFiltered(ctx, conf)
 			return cfg.String(), err
 		}, rpcCall{diagnosticPath, "getFiltered", []string{conf.String()}}},
 		{"GetFilterSchema", func(c *Client) (string, error) {
-			cfg, err := c.GetDiagnosticClient().GetFilterSchema()
+			cfg, err := c.GetDiagnosticClient().GetFilterSchema(ctx)
 			return cfg.String(), err
 		}, rpcCall{diagnosticPath, "getFilterSchema", nil}},
 	}
@@ -134,6 +137,57 @@ func TestRPCConnectionRefused(t *testing.T) {
 	srv := httptest.NewServer(http.NotFoundHandler())
 	host := strings.TrimPrefix(srv.URL, "http://")
 	srv.Close()
-	_, err := NewClient(WithHost(host)).Get([]string{"/device"})
+	_, err := NewClient(WithHost(host)).Get(context.Background(), []string{"/device"})
 	assert.Error(t, err)
 }
+
+// newHangingDevice starts a server which never answers until the test ends.
+func newHangingDevice(t *testing.T) string {
+	t.Helper()
+	done := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-done:
+		case <-r.Context().Done():
+		}
+	}))
+	t.Cleanup(srv.Close)
+	t.Cleanup(func() { close(done) })
+	return strings.TrimPrefix(srv.URL, "http://")
+}
+
+func TestRPCContextCanceled(t *testing.T) {
+	client := NewClient(WithHost(newHangingDevice(t)))
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	_, err := client.Get(ctx, []string{"/device"})
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Less(t, time.Since(start), 2*time.Second)
+}
+
+func TestRPCTimeout(t *testing.T) {
+	client := NewClient(WithHost(newHangingDevice(t)), WithTimeout(100*time.Millisecond))
+	start := time.Now()
+	// The diagnostic client inherits the timeout
+	_, err := client.GetDiagnosticClient().GetFilterSchema(context.Background())
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Less(t, time.Since(start), 2*time.Second)
+}
+
+func TestWithHTTPClient(t *testing.T) {
+	var used bool
+	hc := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		used = true
+		return http.DefaultTransport.RoundTrip(r)
+	})}
+	client, _ := newRecordingDevice(t, `{}`, false)
+	client = NewClient(WithHost(client.host), WithHTTPClient(hc))
+	_, err := client.Get(context.Background(), []string{"/device"})
+	require.NoError(t, err)
+	assert.True(t, used, "custom HTTP client not used")
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }

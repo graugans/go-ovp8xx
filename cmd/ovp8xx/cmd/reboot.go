@@ -24,10 +24,10 @@ func rebootCommand(cmd *cobra.Command, args []string) error {
 	}
 
 	if swu {
-		return o3r.RebootToSWUpdate()
+		return o3r.RebootToSWUpdate(cmd.Context())
 	}
 
-	return o3r.Reboot()
+	return o3r.Reboot(cmd.Context())
 }
 
 // rebootCmd represents the get command

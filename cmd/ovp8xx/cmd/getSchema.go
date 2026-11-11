@@ -19,7 +19,7 @@ func getSchemaCommand(cmd *cobra.Command, args []string) error {
 		ovp8xx.WithHost(helper.hostname()),
 	)
 
-	if result, err = o3r.GetSchema(args); err != nil {
+	if result, err = o3r.GetSchema(cmd.Context(), args); err != nil {
 		return err
 	}
 

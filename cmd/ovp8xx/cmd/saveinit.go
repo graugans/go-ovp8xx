@@ -31,7 +31,7 @@ In case no JSON Pointer is provided the complete configuration is saved`,
 		o3r := ovp8xx.NewClient(
 			ovp8xx.WithHost(host),
 		)
-		return o3r.SaveInit(pointers)
+		return o3r.SaveInit(cmd.Context(), pointers)
 	},
 }
 

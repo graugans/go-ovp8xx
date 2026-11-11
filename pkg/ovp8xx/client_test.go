@@ -1,6 +1,7 @@
 package ovp8xx
 
 import (
+	"context"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -29,9 +30,16 @@ func newFakeDevice(t *testing.T, json string) (*Client, *atomic.Int64) {
 	return NewClient(WithHost(strings.TrimPrefix(srv.URL, "http://"))), &requests
 }
 
+func timeoutCtx(t *testing.T, d time.Duration) context.Context {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), d)
+	t.Cleanup(cancel)
+	return ctx
+}
+
 func TestIsAvailable(t *testing.T) {
 	client, _ := newFakeDevice(t, `{"device":{"diagnostic":{"confInitStages":["device","ports"]}}}`)
-	ok, err := client.IsAvailable(2*time.Second, AndPortsAreOnline())
+	ok, err := client.IsAvailable(timeoutCtx(t, 2*time.Second), AndPortsAreOnline())
 	if !ok || err != nil {
 		t.Fatalf("expected the device to be available, got %v, %v", ok, err)
 	}
@@ -39,7 +47,7 @@ func TestIsAvailable(t *testing.T) {
 
 func TestIsAvailableStopsPollingAfterTimeout(t *testing.T) {
 	client, requests := newFakeDevice(t, "")
-	ok, err := client.IsAvailable(300 * time.Millisecond)
+	ok, err := client.IsAvailable(timeoutCtx(t, 300*time.Millisecond))
 	if ok || err == nil {
 		t.Fatalf("expected a timeout, got %v, %v", ok, err)
 	}
@@ -92,7 +100,7 @@ func TestIsAvailableIPv6(t *testing.T) {
 	t.Cleanup(srv.Close)
 	// The host is given as "[::1]:port", as a user would pass it on the command line
 	client := NewClient(WithHost(l.Addr().String()))
-	if ok, err := client.IsAvailable(2 * time.Second); !ok || err != nil {
+	if ok, err := client.IsAvailable(timeoutCtx(t, 2*time.Second)); !ok || err != nil {
 		t.Fatalf("expected the device to be reachable via IPv6, got %v, %v", ok, err)
 	}
 }
@@ -101,5 +109,17 @@ func TestNewClientIgnoresEnvironment(t *testing.T) {
 	t.Setenv("OVP8XX_IP", "10.0.0.1")
 	if c := NewClient(); c.host != DefaultHost {
 		t.Errorf("expected %q, got %q", DefaultHost, c.host)
+	}
+}
+
+func TestIsAvailableHangingDevice(t *testing.T) {
+	client := NewClient(WithHost(newHangingDevice(t)))
+	start := time.Now()
+	ok, err := client.IsAvailable(timeoutCtx(t, 200*time.Millisecond))
+	if ok || err == nil {
+		t.Fatalf("expected a timeout, got %v, %v", ok, err)
+	}
+	if d := time.Since(start); d > 2*time.Second {
+		t.Errorf("IsAvailable blocked for %v despite the context deadline", d)
 	}
 }

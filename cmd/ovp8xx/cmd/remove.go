@@ -21,7 +21,7 @@ func removeCommand(cmd *cobra.Command, args []string) error {
 		ovp8xx.WithHost(host),
 	)
 
-	return o3r.Remove(p)
+	return o3r.Remove(cmd.Context(), p)
 }
 
 // removeCmd represents the get command
