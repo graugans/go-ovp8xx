@@ -79,7 +79,7 @@ func (e endpoint) callConfig(ctx context.Context, method string, args any) (Conf
 	if err := e.call(ctx, method, args, result); err != nil {
 		return *NewConfig(), err
 	}
-	return *NewConfig(WitJSONString(result.JSON)), nil
+	return *NewConfig(WithJSONString(result.JSON)), nil
 }
 
 // Get retrieves the configuration for the specified pointers from the OVP8xx device.

@@ -29,7 +29,7 @@ func diagnosticGetFilteredCommand(cmd *cobra.Command, args []string) error {
 	result, err := diag.GetFiltered(
 		cmd.Context(),
 		*ovp8xx.NewConfig(
-			ovp8xx.WitJSONString(filter),
+			ovp8xx.WithJSONString(filter),
 		),
 	)
 	if err != nil {

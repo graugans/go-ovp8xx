@@ -62,7 +62,7 @@ const (
 func TestRPCMethods(t *testing.T) {
 	ctx := context.Background()
 	const reply = `{"device":{"name":"test"}}`
-	conf := *NewConfig(WitJSONString(`{"a":1}`))
+	conf := *NewConfig(WithJSONString(`{"a":1}`))
 
 	tests := []struct {
 		name string
