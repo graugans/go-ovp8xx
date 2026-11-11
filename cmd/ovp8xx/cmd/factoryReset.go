@@ -27,7 +27,7 @@ The command factoryReset resets all settings to their defaults and erases any ad
 		o3r := ovp8xx.NewClient(
 			ovp8xx.WithHost(host),
 		)
-		return o3r.FactoryReset(keepNetworkSettings)
+		return o3r.FactoryReset(cmd.Context(), keepNetworkSettings)
 	},
 }
 

@@ -20,7 +20,7 @@ func getInitCommand(cmd *cobra.Command, args []string) error {
 		ovp8xx.WithHost(helper.hostname()),
 	)
 
-	if result, err = o3r.GetInit(); err != nil {
+	if result, err = o3r.GetInit(cmd.Context()); err != nil {
 		return err
 	}
 	if err = helper.printJSONResult(result.String()); err != nil {

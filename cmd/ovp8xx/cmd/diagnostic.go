@@ -27,6 +27,7 @@ func diagnosticGetFilteredCommand(cmd *cobra.Command, args []string) error {
 
 	diag := o3r.GetDiagnosticClient()
 	result, err := diag.GetFiltered(
+		cmd.Context(),
 		*ovp8xx.NewConfig(
 			ovp8xx.WitJSONString(filter),
 		),
@@ -51,7 +52,7 @@ func diagnosticGetFilterSchemaCommand(cmd *cobra.Command, args []string) error {
 	)
 
 	diag := o3r.GetDiagnosticClient()
-	result, err := diag.GetFilterSchema()
+	result, err := diag.GetFilterSchema(cmd.Context())
 	if err != nil {
 		return err
 	} else {

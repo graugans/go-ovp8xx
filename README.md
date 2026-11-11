@@ -216,14 +216,16 @@ Within in your Go project get the ovp8xx package first
 go get github.com/graugans/go-ovp8xx/v2
 ```
 
-The following example will query the software Version of your OVP8xx. Without `ovp8xx.WithHost(...)` the client connects to the default IP address `192.168.0.69` (`ovp8xx.DefaultHost`). The library does not read any environment variables. To resolve the host the same way as the CLI does (`OVP8XX_IP` and the variant specific variables such as `OVP9XX_IP`), use the `variant` package:
+The following example will query the software Version of your OVP8xx. Without `ovp8xx.WithHost(...)` the client connects to the default IP address `192.168.0.69` (`ovp8xx.DefaultHost`). The library does not read any environment variables. To resolve the host the same way as the CLI does (`OVP8XX_IP` and the variant specific variables such as `OVP9XX_IP`), use the `variant` package. All methods take a `context.Context`, which allows to cancel a request or limit its duration; `ovp8xx.WithTimeout(...)` sets a limit for every request of a client:
 
 ```go
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/graugans/go-ovp8xx/v2/pkg/ovp8xx"
 	"github.com/graugans/go-ovp8xx/v2/pkg/variant"
@@ -233,7 +235,9 @@ func main() {
 	o3r := ovp8xx.NewClient(
 		ovp8xx.WithHost(variant.Default.DefaultHost(os.Getenv)),
 	)
-	config, err := o3r.Get([]string{"/device/swVersion"})
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	config, err := o3r.Get(ctx, []string{"/device/swVersion"})
 	if err != nil {
 		fmt.Println(err)
 	}

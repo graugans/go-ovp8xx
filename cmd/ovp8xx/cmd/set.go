@@ -57,6 +57,7 @@ Better extract the object you want to change and only send this`,
 		)
 
 		return o3r.Set(
+			cmd.Context(),
 			*ovp8xx.NewConfig(
 				ovp8xx.WitJSONString(string(data)),
 			),

@@ -50,7 +50,7 @@ func getCommand(cmd *cobra.Command, args []string) error {
 		ovp8xx.WithHost(helper.hostname()),
 	)
 
-	if result, err = o3r.Get(args); err != nil {
+	if result, err = o3r.Get(cmd.Context(), args); err != nil {
 		return err
 	}
 

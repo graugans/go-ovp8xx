@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/netip"
 	"net/url"
 	"slices"
@@ -14,11 +15,18 @@ type (
 	ClientOption func(c *Client)
 	Client       struct {
 		host string
-		url  string
+		endpoint
 	}
 	DiagnosisClient struct {
 		host string
-		url  string
+		endpoint
+	}
+	// endpoint is a single XML-RPC endpoint of the device together with the
+	// settings used for each request.
+	endpoint struct {
+		url        string
+		httpClient *http.Client  // nil means http.DefaultClient
+		timeout    time.Duration // 0 means no timeout besides the context
 	}
 )
 
@@ -68,10 +76,27 @@ func WithHost(host string) ClientOption {
 	}
 }
 
+// WithTimeout limits the duration of each single XML-RPC request. A request is
+// aborted when either the timeout expires or the context passed to the method
+// is done. A timeout of 0 (the default) disables the limit.
+func WithTimeout(timeout time.Duration) ClientOption {
+	return func(c *Client) {
+		c.timeout = timeout
+	}
+}
+
+// WithHTTPClient sets the HTTP client used for the XML-RPC requests, e.g. to
+// configure a proxy or custom transport settings. By default
+// http.DefaultClient is used.
+func WithHTTPClient(httpClient *http.Client) ClientOption {
+	return func(c *Client) {
+		c.httpClient = httpClient
+	}
+}
+
 // GetDiagnosticClient returns a new instance of DiagnosisClient that can be used to perform diagnostic operations on the OVP8xx device.
 func (device *Client) GetDiagnosticClient() *DiagnosisClient {
-	client := &DiagnosisClient{}
-	client.host = device.host
+	client := &DiagnosisClient{host: device.host, endpoint: device.endpoint}
 	client.url = rpcURL(client.host, "/api/rpc/v1/com.ifm.diagnostic/")
 	return client
 }
@@ -102,15 +127,17 @@ func AndAppsAreOnline() WaitForOption {
 // availabilityPollInterval is the pause between two availability checks.
 const availabilityPollInterval = 250 * time.Millisecond
 
-// IsAvailable checks if the client is available by making a XML-RPC get request to query the "/device" object.
-// This is useful to wait until a device is ready for communication.
-// It returns a boolean indicating the availability status and an error if any.
-// The function uses a timeout duration to limit the execution time of the request.
+// IsAvailable waits until the device reports the requested configuration
+// initialization stage. Without options it waits for the "device" stage.
+// This is useful to wait until a device is ready for communication, e.g. after
+// a reboot. The device is polled until it is available or ctx is done.
 // Example usage:
 //
-//	ok, err := device.IsAvailable(time.Duration(timeout) * time.Second, ovp8xx.AndPortsAreOnline())
+//	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+//	defer cancel()
+//	ok, err := device.IsAvailable(ctx, ovp8xx.AndPortsAreOnline())
 //	// ...
-func (d *Client) IsAvailable(timeout time.Duration, opts ...WaitForOption) (bool, error) {
+func (d *Client) IsAvailable(ctx context.Context, opts ...WaitForOption) (bool, error) {
 	waitingFor := &WaitForConfig{
 		stage: "device",
 	}
@@ -120,38 +147,26 @@ func (d *Client) IsAvailable(timeout time.Duration, opts ...WaitForOption) (bool
 		opt(waitingFor)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	// The check runs in its own goroutine, because a single request may block
-	// longer than the timeout. The goroutine stops once the context is done.
-	available := make(chan struct{}, 1)
-	go func() {
-		for {
-			if d.reachedStage(waitingFor.stage) {
-				available <- struct{}{}
-				return
-			}
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(availabilityPollInterval):
-			}
+	ticker := time.NewTicker(availabilityPollInterval)
+	defer ticker.Stop()
+	for {
+		// A request blocking longer than the context allows is aborted by
+		// the context, so no extra goroutine is required.
+		if d.reachedStage(ctx, waitingFor.stage) {
+			return true, nil
 		}
-	}()
-
-	select {
-	case <-ctx.Done():
-		return false, fmt.Errorf("timeout occurred while checking if the device is available: %w", ctx.Err())
-	case <-available:
-		return true, nil
+		select {
+		case <-ctx.Done():
+			return false, fmt.Errorf("device is not available: %w", ctx.Err())
+		case <-ticker.C:
+		}
 	}
 }
 
 // reachedStage returns true if the device reports the given configuration
 // initialization stage.
-func (d *Client) reachedStage(stage string) bool {
-	conf, err := d.Get([]string{"/device/diagnostic/confInitStages"})
+func (d *Client) reachedStage(ctx context.Context, stage string) bool {
+	conf, err := d.Get(ctx, []string{"/device/diagnostic/confInitStages"})
 	if err != nil {
 		return false
 	}
