@@ -7,8 +7,12 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/graugans/go-ovp8xx/v2/pkg/variant"
 	"github.com/spf13/cobra"
 )
+
+// currentVariant is the variant the binary has been invoked as.
+var currentVariant = variant.Detect(os.Args[0], os.Getenv)
 
 // SetVersionInfo sets the version information for the root command.
 // It formats the version, commit, and date into a string and assigns it to the rootCmd.Version variable.
@@ -18,8 +22,8 @@ func SetVersionInfo(version, commit, date string) {
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:          currentVariant.name,
-	Short:        "A command line application to interact with the ifm " + currentVariant.displayName + " series of devices",
+	Use:          currentVariant.Name,
+	Short:        "A command line application to interact with the ifm " + currentVariant.DisplayName + " series of devices",
 	SilenceUsage: true,
 }
 
@@ -33,16 +37,12 @@ func Execute() {
 }
 
 func init() {
-	envHint := currentVariant.ipEnvVar()
-	if currentVariant != defaultVariant {
-		envHint += " or " + defaultVariant.ipEnvVar()
-	}
 	rootCmd.PersistentFlags().String(
 		"ip",
-		currentVariant.defaultHost(os.Getenv),
+		currentVariant.DefaultHost(os.Getenv),
 		fmt.Sprintf(
 			"The IP address or hostname of the %s. If not provided the default will be taken from the environment variable %s",
-			currentVariant.displayName, envHint,
+			currentVariant.DisplayName, currentVariant.IPEnvHint(),
 		),
 	)
 }
