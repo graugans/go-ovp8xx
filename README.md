@@ -218,6 +218,13 @@ ovp8xx swupdate firmware.swu
 ovp8xx swupdate restart                     # reboot back into productive mode
 ```
 
+While the device is in the SWUpdate mode, its device information can be printed:
+
+```sh
+ovp8xx swupdate deviceInfo                  # human readable
+ovp8xx swupdate deviceInfo --json           # JSON document of the device
+```
+
 ### API usage
 
 Within in your Go project get the ovp8xx package first
