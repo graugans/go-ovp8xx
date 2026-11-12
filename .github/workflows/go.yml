@@ -65,6 +65,10 @@ jobs:
   snapshot:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # required to link the snapshot in a comment of the pull request
+      pull-requests: write
     steps:
       - uses: actions/checkout@v5
         with:
@@ -81,6 +85,7 @@ jobs:
           version: v2.3.2
           args: release --snapshot --clean --skip=sbom
       - name: Upload the snapshot
+        id: upload
         uses: actions/upload-artifact@v7
         with:
           name: ovp8xx-pr-${{ github.event.pull_request.number }}
@@ -92,6 +97,23 @@ jobs:
           retention-days: 14
           # the archives are compressed already
           compression-level: 0
+      # The artifacts are hard to find on the summary page of the workflow run,
+      # so link them in the pull request. The comment is updated on each run.
+      # The token of a pull request from a fork is not allowed to comment.
+      - name: Link the snapshot in the pull request
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          ARTIFACT_URL: ${{ steps.upload.outputs.artifact-url }}
+        run: |
+          gh pr comment "${PR_NUMBER}" --repo "${GITHUB_REPOSITORY}" \
+            --edit-last --create-if-none --body-file - <<EOF
+          📦 **Snapshot build** of ${HEAD_SHA}: [ovp8xx-pr-${PR_NUMBER}](${ARTIFACT_URL})
+
+          The archive contains the CLI for all platforms. A GitHub login is required for the download, the snapshot is kept for 14 days.
+          EOF
 
   release:
     runs-on: ubuntu-latest
