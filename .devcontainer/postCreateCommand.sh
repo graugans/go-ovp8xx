@@ -7,6 +7,9 @@ GOLANGCI_LINT_VERSION="v2.15.0"
 # which breaks `apt-get update`. Yarn is not needed for this project.
 sudo rm -f /etc/apt/sources.list.d/yarn.list
 
+# The volume holding the GitHub CLI configuration is created owned by root
+sudo chown "$(id -un):$(id -gn)" "${HOME}/.config" "${HOME}/.config/gh"
+
 # install missing packages
 sudo apt-get update
 sudo apt-get install -q -y \

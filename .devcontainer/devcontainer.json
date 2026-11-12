@@ -12,11 +12,20 @@
 	// Share the host Claude Code config (incl. credentials) with the container,
 	// so the authentication survives container rebuilds.
 	"mounts": [
-		"source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind"
+		"source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind",
+		// Keeps the GitHub CLI login (`gh auth login`) across container rebuilds.
+		// A volume is used instead of the host directory, so the token of the
+		// container is independent of the one on the host.
+		"source=go-ovp8xx-gh-config,target=/home/vscode/.config/gh,type=volume"
 	],
 	"containerEnv": {
 		// Keeps .claude.json inside the mounted directory instead of $HOME
 		"CLAUDE_CONFIG_DIR": "/home/vscode/.claude"
+	},
+
+	// The GitHub CLI gives access to issues, pull requests and the CI results
+	"features": {
+		"ghcr.io/devcontainers/features/github-cli:1": {}
 	},
 
 	// Use 'postCreateCommand' to run commands after the container is created.
