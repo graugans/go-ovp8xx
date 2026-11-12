@@ -205,3 +205,67 @@ func TestIsAvailableTimeout(t *testing.T) {
 		t.Fatalf("expected a timeout, got %v, %v", ok, err)
 	}
 }
+
+// newFakeDeviceInfoBody starts a fake SWUpdate service which answers the
+// device information requests with the given status and body.
+func newFakeDeviceInfoBody(t *testing.T, status int, body string) *SWUpdater {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/device-info" {
+			http.NotFound(w, r)
+			return
+		}
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(srv.Close)
+	h, p, err := net.SplitHostPort(srv.Listener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	pn, _ := strconv.Atoi(p)
+	return NewSWUpdater(h, uint16(pn), nil)
+}
+
+func TestDeviceInfo(t *testing.T) {
+	const want = `{"device":"OVP810","version":{"firmware":"1.2.3"}}`
+	tests := []struct{ name, body string }{
+		{"clean", want},
+		{"trailing newline", want + "\n"},
+		{"trailing garbage", want + "\x00\x7f}xyz\xff"},
+		{"trailing brace", want + "}"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			swu := newFakeDeviceInfoBody(t, http.StatusOK, tt.body)
+			info, err := swu.DeviceInfo(timeoutCtx(t, 2*time.Second))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if string(info) != want {
+				t.Errorf("got %q, want %q", info, want)
+			}
+		})
+	}
+}
+
+func TestDeviceInfoErrors(t *testing.T) {
+	tests := []struct {
+		name   string
+		status int
+		body   string
+	}{
+		{"not found", http.StatusNotFound, "{}"},
+		{"no JSON", http.StatusOK, "<html></html>"},
+		{"truncated", http.StatusOK, `{"device":"OVP8`},
+		{"empty", http.StatusOK, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			swu := newFakeDeviceInfoBody(t, tt.status, tt.body)
+			if info, err := swu.DeviceInfo(timeoutCtx(t, 2*time.Second)); err == nil {
+				t.Errorf("expected an error, got %q", info)
+			}
+		})
+	}
+}

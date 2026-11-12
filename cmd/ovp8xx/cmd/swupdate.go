@@ -4,6 +4,9 @@ Copyright © 2023 Christian Ege <ch@ege.io>
 package cmd
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"path/filepath"
@@ -139,6 +142,59 @@ the SWUpdater service again.
 	},
 }
 
+// deviceInfoCmd represents the deviceInfo command.
+// It prints the device information provided by the SWUpdate service.
+var deviceInfoCmd = &cobra.Command{
+	Use:     "deviceInfo",
+	Aliases: []string{"device-info"},
+	Short:   "Print the device information",
+	Long: `This command prints the device information provided by the SWUpdate service.
+
+The device has to be in the SWUpdate mode. The information is printed in a
+human readable format, use --json to get the JSON document of the device.
+`,
+	Args: cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		host, err := rootCmd.PersistentFlags().GetString("ip")
+		if err != nil {
+			return fmt.Errorf("cannot get host: %w", err)
+		}
+
+		port, err := cmd.Parent().Flags().GetUint16("port")
+		if err != nil {
+			return fmt.Errorf("cannot get port: %w", err)
+		}
+
+		timeout, err := cmd.Flags().GetDuration("timeout")
+		if err != nil {
+			return fmt.Errorf("cannot get timeout: %w", err)
+		}
+
+		asJSON, err := cmd.Flags().GetBool("json")
+		if err != nil {
+			return fmt.Errorf("cannot get json: %w", err)
+		}
+
+		ctx, cancel := context.WithTimeout(cmd.Context(), timeout)
+		defer cancel()
+		info, err := swupdater.NewSWUpdater(host, port, nil).DeviceInfo(ctx)
+		if err != nil {
+			return err
+		}
+
+		out := cmd.OutOrStdout()
+		if asJSON {
+			var indented bytes.Buffer
+			if err := json.Indent(&indented, info, "", "  "); err != nil {
+				return fmt.Errorf("cannot format the device information: %w", err)
+			}
+			_, err = fmt.Fprintln(out, indented.String())
+			return err
+		}
+		return writeHumanReadable(out, info)
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(swupdateCmd)
 
@@ -150,4 +206,9 @@ func init() {
 	// The restart sub command
 	swupdateCmd.AddCommand(restartCmd)
 	restartCmd.Flags().Duration("online", 3*time.Second, "The time to wait for the device to become available")
+
+	// The deviceInfo sub command
+	swupdateCmd.AddCommand(deviceInfoCmd)
+	deviceInfoCmd.Flags().Duration("timeout", 5*time.Second, "The timeout for the request")
+	deviceInfoCmd.Flags().Bool("json", false, "Print the device information as JSON")
 }
