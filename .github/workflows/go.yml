@@ -60,6 +60,39 @@ jobs:
       - name: Build the CLI
         run: go build cmd/ovp8xx/ovp8xx.go
 
+  # Provides the CLI of a pull request for all platforms as a workflow
+  # artifact, so a change can be tested without building it locally.
+  snapshot:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # the version of the snapshot is derived from the latest tag
+          fetch-depth: 0
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Build the snapshot
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          # Keep in sync with the GoReleaser version embedded in
+          # go-semantic-release/hooks-goreleaser, see .goreleaser.yaml
+          version: v2.3.2
+          args: release --snapshot --clean --skip=sbom
+      - name: Upload the snapshot
+        uses: actions/upload-artifact@v7
+        with:
+          name: ovp8xx-pr-${{ github.event.pull_request.number }}
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/checksums.txt
+          if-no-files-found: error
+          retention-days: 14
+          # the archives are compressed already
+          compression-level: 0
+
   release:
     runs-on: ubuntu-latest
     needs: test
