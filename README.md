@@ -200,10 +200,20 @@ ovp8xx reboot                               # reboot the device
 ovp8xx WaitForOnline --timeout 120          # wait until the device is reachable again
 ```
 
+`WaitForOnline` waits for the productive mode (XML-RPC) as well as for the SWUpdate mode (port 8080) and reports
+which one was reached. Use `--mode` to wait for a specific one:
+
+```sh
+ovp8xx WaitForOnline                        # auto: whichever mode is reached first
+ovp8xx WaitForOnline --mode productive      # the device and its ports are initialized
+ovp8xx WaitForOnline --mode swupdate        # the SWUpdate service is reachable
+```
+
 Update the firmware, the device has to be rebooted into the SWUpdate mode first:
 
 ```sh
 ovp8xx reboot --swupdate
+ovp8xx WaitForOnline --mode swupdate
 ovp8xx swupdate firmware.swu
 ovp8xx swupdate restart                     # reboot back into productive mode
 ```
