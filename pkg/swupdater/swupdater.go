@@ -1,9 +1,11 @@
 package swupdater
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -23,6 +25,7 @@ type SWUpdater struct {
 	port          uint16                     // The port number of the updater.
 	urlUpload     string                     // The URL for uploading software updates.
 	urlStatus     string                     // The URL for checking the status of software updates.
+	urlDeviceInfo string                     // The URL used to check whether the service is reachable.
 	notifications chan SWUpdaterNotification // A channel for receiving notifications.
 	ws            *websocket.Conn
 }
@@ -36,6 +39,7 @@ func NewSWUpdater(hostName string, port uint16, notifications chan SWUpdaterNoti
 		port:          port,
 		urlUpload:     serviceURL("http", hostName, port, "/upload"),
 		urlStatus:     serviceURL("ws", hostName, port, "/ws"),
+		urlDeviceInfo: serviceURL("http", hostName, port, "/device-info"),
 		notifications: notifications,
 	}
 }
@@ -50,6 +54,69 @@ func serviceURL(scheme, host string, port uint16, path string) string {
 		Path:   path,
 	}
 	return u.String()
+}
+
+// requiredAvailabilityChecks is the number of consecutive successful checks
+// required before the SWUpdate service is considered available. A single
+// answer is not sufficient, the service may still be restarted while booting.
+const requiredAvailabilityChecks = 3
+
+// availabilityRequestTimeout limits a single availability check, so a
+// device which accepts the connection but does not answer is polled again.
+const availabilityRequestTimeout = 3 * time.Second
+
+// availabilityPollInterval is the pause between two availability checks.
+var availabilityPollInterval = time.Second
+
+// IsAvailable waits until the SWUpdate service of the device is reachable,
+// i.e. the device is running in the SWUpdate (recovery) mode. The service is
+// considered available after it answered three consecutive requests. The
+// device is polled until it is available or ctx is done.
+// Example usage:
+//
+//	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+//	defer cancel()
+//	ok, err := swu.IsAvailable(ctx)
+//	// ...
+func (s *SWUpdater) IsAvailable(ctx context.Context) (bool, error) {
+	ticker := time.NewTicker(availabilityPollInterval)
+	defer ticker.Stop()
+	stable := 0
+	for {
+		if s.deviceInfoReachable(ctx) {
+			stable++
+			if stable >= requiredAvailabilityChecks {
+				return true, nil
+			}
+		} else {
+			stable = 0
+		}
+		select {
+		case <-ctx.Done():
+			return false, fmt.Errorf("SWUpdate service is not available: %w", ctx.Err())
+		case <-ticker.C:
+		}
+	}
+}
+
+// deviceInfoReachable returns true if the SWUpdate service answers a request
+// for the device information successfully.
+func (s *SWUpdater) deviceInfoReachable(ctx context.Context) bool {
+	ctx, cancel := context.WithTimeout(ctx, availabilityRequestTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.urlDeviceInfo, nil)
+	if err != nil {
+		return false
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return false
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if _, err := io.Copy(io.Discard, resp.Body); err != nil {
+		return false
+	}
+	return resp.StatusCode >= 200 && resp.StatusCode < 300
 }
 
 // Upload performs the upload of the specified file.

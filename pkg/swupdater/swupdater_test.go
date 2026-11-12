@@ -1,12 +1,14 @@
 package swupdater
 
 import (
+	"context"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -126,5 +128,80 @@ func TestUpdateIPv6(t *testing.T) {
 	swu := NewSWUpdater(host, port, nil)
 	if err := swu.Update(firmwareFile(t), time.Second, 5*time.Second); err != nil {
 		t.Fatalf("expected a successful update via IPv6, got: %v", err)
+	}
+}
+
+// newFakeDeviceInfo starts a fake SWUpdate service which answers the device
+// information requests with the status returned by status. The argument of
+// status is the number of the request, starting at 1.
+func newFakeDeviceInfo(t *testing.T, status func(request int32) int) (*SWUpdater, *atomic.Int32) {
+	t.Helper()
+	requests := &atomic.Int32{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/device-info" {
+			http.NotFound(w, r)
+			return
+		}
+		w.WriteHeader(status(requests.Add(1)))
+	}))
+	t.Cleanup(srv.Close)
+	h, p, err := net.SplitHostPort(srv.Listener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	pn, _ := strconv.Atoi(p)
+	return NewSWUpdater(h, uint16(pn), nil), requests
+}
+
+func fastAvailabilityPolling(t *testing.T) {
+	t.Helper()
+	old := availabilityPollInterval
+	availabilityPollInterval = 10 * time.Millisecond
+	t.Cleanup(func() { availabilityPollInterval = old })
+}
+
+func timeoutCtx(t *testing.T, d time.Duration) context.Context {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), d)
+	t.Cleanup(cancel)
+	return ctx
+}
+
+func TestIsAvailable(t *testing.T) {
+	fastAvailabilityPolling(t)
+	swu, requests := newFakeDeviceInfo(t, func(int32) int { return http.StatusOK })
+	ok, err := swu.IsAvailable(timeoutCtx(t, 2*time.Second))
+	if !ok || err != nil {
+		t.Fatalf("expected the service to be available, got %v, %v", ok, err)
+	}
+	if n := requests.Load(); n != requiredAvailabilityChecks {
+		t.Errorf("expected %d checks, got %d", requiredAvailabilityChecks, n)
+	}
+}
+
+func TestIsAvailableRequiresConsecutiveChecks(t *testing.T) {
+	fastAvailabilityPolling(t)
+	// Two good answers followed by a failure must not count
+	swu, requests := newFakeDeviceInfo(t, func(request int32) int {
+		if request == 3 {
+			return http.StatusServiceUnavailable
+		}
+		return http.StatusOK
+	})
+	ok, err := swu.IsAvailable(timeoutCtx(t, 2*time.Second))
+	if !ok || err != nil {
+		t.Fatalf("expected the service to be available, got %v, %v", ok, err)
+	}
+	if n := requests.Load(); n != 6 {
+		t.Errorf("expected 6 checks, got %d", n)
+	}
+}
+
+func TestIsAvailableTimeout(t *testing.T) {
+	fastAvailabilityPolling(t)
+	swu, _ := newFakeDeviceInfo(t, func(int32) int { return http.StatusNotFound })
+	ok, err := swu.IsAvailable(timeoutCtx(t, 100*time.Millisecond))
+	if ok || err == nil {
+		t.Fatalf("expected a timeout, got %v, %v", ok, err)
 	}
 }
