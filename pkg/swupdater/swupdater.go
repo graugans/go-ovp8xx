@@ -152,7 +152,6 @@ func (s *SWUpdater) DeviceInfo(ctx context.Context) (json.RawMessage, error) {
 	_, _ = io.Copy(io.Discard, limited)
 	return info, nil
 }
-
 // Upload performs the upload of the specified file.
 // The filename parameter specifies the name of the file to be uploaded.
 // Returns an error if the upload fails.

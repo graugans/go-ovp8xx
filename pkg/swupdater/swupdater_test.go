@@ -205,7 +205,6 @@ func TestIsAvailableTimeout(t *testing.T) {
 		t.Fatalf("expected a timeout, got %v, %v", ok, err)
 	}
 }
-
 // newFakeDeviceInfoBody starts a fake SWUpdate service which answers the
 // device information requests with the given status and body.
 func newFakeDeviceInfoBody(t *testing.T, status int, body string) *SWUpdater {
