@@ -141,10 +141,15 @@ func (s *SWUpdater) DeviceInfo(ctx context.Context) (json.RawMessage, error) {
 	}
 	// The decoder stops after the first JSON value, so trailing garbage is
 	// never parsed.
+	limited := io.LimitReader(resp.Body, maxDeviceInfoSize)
+	dec := json.NewDecoder(limited)
 	var info json.RawMessage
-	if err := json.NewDecoder(io.LimitReader(resp.Body, maxDeviceInfoSize)).Decode(&info); err != nil {
+	if err := dec.Decode(&info); err != nil {
 		return nil, fmt.Errorf("cannot parse the device information: %w", err)
 	}
+	// Best-effort drain (still capped by maxDeviceInfoSize) so the HTTP transport
+	// can reuse the connection.
+	_, _ = io.Copy(io.Discard, limited)
 	return info, nil
 }
 
