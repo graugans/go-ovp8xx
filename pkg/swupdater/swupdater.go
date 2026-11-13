@@ -119,6 +119,39 @@ func (s *SWUpdater) deviceInfoReachable(ctx context.Context) bool {
 	return resp.StatusCode >= 200 && resp.StatusCode < 300
 }
 
+// maxDeviceInfoSize limits the size of the device information read from the
+// device.
+const maxDeviceInfoSize = 1 << 20
+
+// DeviceInfo returns the device information provided by the SWUpdate service
+// as JSON document. Some devices append garbage to the document, everything
+// following the first JSON value is dropped.
+func (s *SWUpdater) DeviceInfo(ctx context.Context) (json.RawMessage, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.urlDeviceInfo, nil)
+	if err != nil {
+		return nil, fmt.Errorf("cannot create request: %w", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("cannot request the device information: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("the device information request (%s) failed with status: %s", s.urlDeviceInfo, resp.Status)
+	}
+	// The decoder stops after the first JSON value, so trailing garbage is
+	// never parsed.
+	limited := io.LimitReader(resp.Body, maxDeviceInfoSize)
+	dec := json.NewDecoder(limited)
+	var info json.RawMessage
+	if err := dec.Decode(&info); err != nil {
+		return nil, fmt.Errorf("cannot parse the device information: %w", err)
+	}
+	// Best-effort drain (still capped by maxDeviceInfoSize) so the HTTP transport
+	// can reuse the connection.
+	_, _ = io.Copy(io.Discard, limited)
+	return info, nil
+}
 // Upload performs the upload of the specified file.
 // The filename parameter specifies the name of the file to be uploaded.
 // Returns an error if the upload fails.
