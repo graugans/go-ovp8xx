@@ -21,3 +21,7 @@
 go.work
 
 dist/
+
+# Locally built CLI binary and local MCP client config (see README)
+/ovp8xx
+.vscode/mcp.json

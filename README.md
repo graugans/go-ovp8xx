@@ -44,7 +44,7 @@ On Windows the binary can simply be copied or renamed (e.g. `o3cxxx.exe`). If re
 
 ### Read-only MCP server
 
-Run `ovp8xx mcp --ip 192.168.0.73` to expose one device over MCP stdio.
+Run `ovp8xx --ip 192.168.0.73 mcp` to expose one device over MCP stdio.
 Standard output is reserved for MCP; errors are written to standard error.
 Each device tool/resource read is bounded by `--timeout` (default `10s`).
 The command also works with the multicall device-family names above.
@@ -58,11 +58,45 @@ executable path and device address):
     "ovp8xx": {
       "type": "stdio",
       "command": "/absolute/path/to/ovp8xx",
-      "args": ["mcp", "--ip", "192.168.0.73"]
+      "args": ["--ip", "192.168.0.73", "mcp"]
     }
   }
 }
 ```
+
+For development, create a local `.vscode/mcp.json` (git-ignored) as shown
+above, pointing at the binary in the workspace root. Build it first with
+`go build -o ovp8xx ./cmd/ovp8xx` (the binary is git-ignored, too). Run
+**MCP: List Servers**, select **ovp8xx** and start it. After source changes,
+rebuild the binary and restart the MCP server.
+
+Use a prebuilt binary as the server command. Launching the server through
+`go run` can fail in MCP clients: the extra compile step delays the stdio
+handshake and `go run` adds an intermediate process between client and server.
+
+The server can also be registered with the GitHub Copilot CLI by adding it to
+`~/.copilot/mcp-config.json` (adjust paths and device address):
+
+```json
+{
+  "mcpServers": {
+    "ovp8xx": {
+      "type": "local",
+      "command": "/absolute/path/to/ovp8xx",
+      "args": ["--ip", "192.168.0.73", "mcp"],
+      "env": {
+        "NO_PROXY": "192.168.0.73",
+        "no_proxy": "192.168.0.73"
+      },
+      "tools": ["*"]
+    }
+  }
+}
+```
+
+The `NO_PROXY` entries keep device traffic off any configured HTTP proxy.
+Restart the Copilot session after changing the configuration; MCP servers
+are only loaded at session start.
 
 Tools:
 
