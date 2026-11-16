@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "ovp8xx": {
+      "type": "local",
+      "command": "/absolute/path/to/ovp8xx",
+      "args": ["--ip", "192.168.0.69", "mcp"],
+      "env": {
+        "NO_PROXY": "192.168.0.69",
+        "no_proxy": "192.168.0.69"
+      },
+      "tools": ["*"]
+    }
+  }
+}

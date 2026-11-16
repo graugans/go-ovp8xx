@@ -15,7 +15,9 @@ sudo chown -R "$(id -un):$(id -gn)" "${HOME}/.config/gh"
 # install missing packages
 sudo apt-get update
 sudo apt-get install -q -y \
+    file \
     git-lfs \
+    iputils-ping \
     pre-commit \
     shfmt \
     shellcheck

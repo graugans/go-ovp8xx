@@ -42,6 +42,91 @@ ln -s ovp8xx o3cxxx
 
 On Windows the binary can simply be copied or renamed (e.g. `o3cxxx.exe`). If renaming or linking is not an option, the variant can also be selected with the environment variable `OVP8XX_VARIANT` (e.g. `OVP8XX_VARIANT=ovp9xx`). A link name (`ovp9xx`, `o3cxxx`) takes precedence over the environment variable.
 
+### Read-only MCP server
+
+Run `ovp8xx --ip 192.168.0.73 mcp` to expose one device over MCP stdio.
+Standard output is reserved for MCP; errors are written to standard error.
+Each device tool/resource read is bounded by `--timeout` (default `10s`).
+The command also works with the multicall device-family names above.
+
+For example, add this server to VS Code's `.vscode/mcp.json` (adjust the
+executable path and device address):
+
+```json
+{
+  "servers": {
+    "ovp8xx": {
+      "type": "stdio",
+      "command": "/absolute/path/to/ovp8xx",
+      "args": ["--ip", "192.168.0.73", "mcp"]
+    }
+  }
+}
+```
+
+For development, create a local `.vscode/mcp.json` (git-ignored) as shown
+above, pointing at the binary in the workspace root. Build it first with
+`go build -o ovp8xx ./cmd/ovp8xx` (the binary is git-ignored, too). Run
+**MCP: List Servers**, select **ovp8xx** and start it. After source changes,
+rebuild the binary and restart the MCP server.
+
+Use a prebuilt binary as the server command. Launching the server through
+`go run` can fail in MCP clients: the extra compile step delays the stdio
+handshake and `go run` adds an intermediate process between client and server.
+
+The server can also be registered with the GitHub Copilot CLI by adding it to
+`~/.copilot/mcp-config.json` (adjust paths and device address):
+
+```json
+{
+  "mcpServers": {
+    "ovp8xx": {
+      "type": "local",
+      "command": "/absolute/path/to/ovp8xx",
+      "args": ["--ip", "192.168.0.73", "mcp"],
+      "env": {
+        "NO_PROXY": "192.168.0.73",
+        "no_proxy": "192.168.0.73"
+      },
+      "tools": ["*"]
+    }
+  }
+}
+```
+
+The `NO_PROXY` entries keep device traffic off any configured HTTP proxy.
+Restart the Copilot session after changing the configuration; MCP servers
+are only loaded at session start.
+
+Tools:
+
+- `get_device_overview`: identity, firmware, initialization stages, sensor ports,
+  states, data endpoints, applications and active diagnostics.
+- `get_config`: configuration fragments selected by optional `paths`.
+- `get_schema`: live JSON Schema selected by optional `paths`.
+- `get_diagnostics`: optional device-side `filter`; defaults to active events.
+  An empty object `{}` requests the full diagnostic catalog, including events
+  that have never occurred (`stats.count == 0`).
+
+Resources provide API semantics (`device://knowledge/api`), diagnostic
+interpretation (`device://knowledge/diagnostics`) and the live filter schema
+(`device://diagnostics/filter-schema`). Prefer scoped reads over complete
+configuration/schema documents. Overview reads are sequential observations,
+not an atomic snapshot; `observedAt` is the server observation time.
+Device timestamps may not be synchronized to wall-clock time.
+
+No configuration writes, port state changes, reboot or firmware uploads are
+exposed. The device must be reachable in productive mode; recovery discovery is
+not part of this initial server. Device-provided text is data, not instructions.
+
+Protocol tests use an in-memory MCP connection and a fake XML-RPC device.
+To additionally check the real stdio CLI and all tools/resources against a
+connected device (read-only):
+
+```sh
+OVP8XX_MCP_TEST_HOST=192.168.0.73 go test -run TestLiveStdio -v ./pkg/mcpserver
+```
+
 ### CLI PCIC Receiver
 
 There is a simple PCIC data receiver which is useful to check the data transferred over PCIC. PCIC is a proprietary protocol designed by ifm. For the OVP8xx line of devices the results provided by PCIC are encapsulated into a Chunk. The following information is available for each Chunk:

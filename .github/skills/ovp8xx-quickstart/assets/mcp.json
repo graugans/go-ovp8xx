@@ -1,0 +1,21 @@
+{
+  "inputs": [
+    {
+      "id": "deviceIP",
+      "type": "promptString",
+      "description": "Device IP address or hostname",
+      "default": "192.168.0.69"
+    }
+  ],
+  "servers": {
+    "ovp8xx": {
+      "type": "stdio",
+      "command": "/absolute/path/to/ovp8xx",
+      "args": ["--ip", "${input:deviceIP}", "mcp"],
+      "env": {
+        "NO_PROXY": "${input:deviceIP}",
+        "no_proxy": "${input:deviceIP}"
+      }
+    }
+  }
+}
