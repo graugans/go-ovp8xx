@@ -332,8 +332,15 @@ ovp8xx swupdate firmware.swu
 ovp8xx WaitForOnline --mode productive
 ```
 
-After a successful installation the device reboots into the productive system on its own. `swupdate restart` is
-only needed to leave the SWUpdate mode without an update:
+After a successful installation the device reboots into the productive system on its own. With `--wait` the
+`swupdate` command waits for it, so its exit code means that the new firmware is running:
+
+```sh
+ovp8xx swupdate --wait firmware.swu         # same as swupdate + WaitForOnline --mode productive
+```
+
+`swupdate restart` is only needed to leave the SWUpdate mode without an update. It fails with a hint if the
+device is not in the SWUpdate mode:
 
 ```sh
 ovp8xx swupdate restart                     # reboot back into productive mode

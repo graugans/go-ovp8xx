@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/graugans/go-ovp8xx/v2/pkg/ovp8xx"
 	"github.com/graugans/go-ovp8xx/v2/pkg/swupdater"
 	"github.com/spf13/cobra"
 )
@@ -44,6 +46,16 @@ func swupdateCommand(cmd *cobra.Command, args []string) error {
 	connectionTimeout, err := cmd.Flags().GetDuration("online")
 	if err != nil {
 		return fmt.Errorf("cannot get timeout: %w", err)
+	}
+
+	wait, err := cmd.Flags().GetBool("wait")
+	if err != nil {
+		return fmt.Errorf("cannot get wait: %w", err)
+	}
+
+	waitTimeout, err := cmd.Flags().GetDuration("wait-timeout")
+	if err != nil {
+		return fmt.Errorf("cannot get wait timeout: %w", err)
 	}
 
 	fmt.Printf("Updating firmware on %s with file %s (%v)\n",
@@ -83,7 +95,19 @@ func swupdateCommand(cmd *cobra.Command, args []string) error {
 
 	wg.Wait() // Wait for all goroutines to finish
 	fmt.Println("Update installed, the device is rebooting into the productive system.")
-	fmt.Println("Use \"WaitForOnline --mode productive\" to wait until it is available.")
+	if !wait {
+		fmt.Println("Use \"WaitForOnline --mode productive\" or \"swupdate --wait\" to wait until it is available.")
+		return nil
+	}
+
+	fmt.Printf("Waiting for the productive system (%v)...\n", waitTimeout)
+	ctx, cancel := context.WithTimeout(cmd.Context(), waitTimeout)
+	defer cancel()
+	o3r := ovp8xx.NewClient(ovp8xx.WithHost(host))
+	if _, err := o3r.IsAvailable(ctx, ovp8xx.AndPortsAreOnline()); err != nil {
+		return fmt.Errorf("update installed, but the productive system is not available: %w", err)
+	}
+	fmt.Println("The device is available now (productive mode)")
 	return nil
 }
 
@@ -101,7 +125,11 @@ After a successful installation the recovery system reboots the device into the
 productive system on its own. A following "swupdate restart" is not needed and
 fails, because the device is already rebooting. To wait for the productive system:
 
-  ovp8xx swupdate firmware.swu && ovp8xx WaitForOnline --mode productive`,
+  ovp8xx swupdate firmware.swu && ovp8xx WaitForOnline --mode productive
+
+or let swupdate wait itself, its exit code then means that the new firmware is running:
+
+  ovp8xx swupdate --wait firmware.swu`,
 	RunE: swupdateCommand,
 }
 
@@ -145,6 +173,10 @@ into the productive system on its own.
 
 		// Call the Restart method on the SWUpdater instance
 		if err := updater.Restart(connectionTimeout); err != nil {
+			if errors.Is(err, swupdater.ErrNotReachable) {
+				return fmt.Errorf("failed to restart the device: the device is not in the SWUpdate mode "+
+					"(it may already be rebooting into the productive system): %w", err)
+			}
 			return fmt.Errorf("failed to restart the device: %w", err)
 		}
 
@@ -213,6 +245,8 @@ func init() {
 	swupdateCmd.PersistentFlags().Duration("online", 2*time.Minute, "The time to wait for the device to become available")
 	swupdateCmd.Flags().Duration("online", 2*time.Minute, "The time to wait for the device to become available")
 	swupdateCmd.Flags().Duration("timeout", 5*time.Minute, "The timeout for the upload")
+	swupdateCmd.Flags().Bool("wait", false, "Wait until the productive system is available after the update")
+	swupdateCmd.Flags().Duration("wait-timeout", 5*time.Minute, "The time to wait for the productive system with --wait")
 
 	// The restart sub command
 	swupdateCmd.AddCommand(restartCmd)
