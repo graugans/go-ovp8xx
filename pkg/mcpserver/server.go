@@ -1,16 +1,41 @@
-// Package mcpserver exposes read-only device discovery over MCP.
+// Package mcpserver exposes device discovery over MCP. It is read-only by
+// default; the configuration write tools are only exposed with WithWrite.
 package mcpserver
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/graugans/go-ovp8xx/v2/pkg/ovp8xx"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+// Option configures the server.
+type Option func(*options)
+
+type options struct {
+	write bool
+}
+
+// WithWrite exposes the configuration write tools set_config and save_init.
+// Without it the server is read-only and the write tools are not listed at all.
+func WithWrite() Option {
+	return func(o *options) { o.write = true }
+}
+
+type setConfigInput struct {
+	Config map[string]any `json:"config" jsonschema:"Configuration fragment with the enclosing JSON hierarchy, e.g. {\"device\":{\"info\":{\"name\":\"front\"}}}. Send only the parameters to change."`
+}
+
+type saveInitInput struct {
+	Paths []string `json:"paths" jsonschema:"JSON pointers defining the scope to persist, e.g. [\"/device/info\"]. Keep it narrow; [\"\"] persists the complete configuration."`
+}
 
 type pathsInput struct {
 	Paths []string `json:"paths,omitempty" jsonschema:"JSON pointers; omit for the complete document. Prefer scoped reads."`
@@ -48,10 +73,22 @@ type overview struct {
 	Diagnostics json.RawMessage `json:"diagnostics"`
 }
 
-const semantics = `This server is read-only and bound to one configured device.
-get_config and get_schema return the enclosing JSON hierarchy, not just leaf values.
-Omitted paths request the full document; prefer scoped paths to reduce payload.
+const readOnlySemantics = `This server is read-only and bound to one configured device.
 Configuration fragments can be input to the device set API, but this server exposes no writes.
+`
+
+const writeSemantics = `This server is bound to one configured device and exposes configuration writes.
+set_config applies a fragment with the enclosing hierarchy, exactly like get_config returns it.
+Send only the parameters to change. Read get_schema first: respect readOnly, enums and ranges.
+Changes are temporary until save_init persists them; a reboot discards unsaved changes,
+which is the way to undo a mistake. Keep save_init scoped to the changed paths.
+Changing ports/*/state (e.g. RUN, CONF, IDLE) stops or starts data streams of running
+applications; ask the user before doing so. set_config returns the values read back afterwards.
+Reboot, factory reset and firmware updates are not exposed.
+`
+
+const commonSemantics = `get_config and get_schema return the enclosing JSON hierarchy, not just leaf values.
+Omitted paths request the full document; prefer scoped paths to reduce payload.
 Read live schema for enums, ranges, readOnly and attributes such as conf or resets_schema.
 Do not assume all ports support IDLE or that all changes require a global CONF transition.
 Discover sensors from ports/*/info/features and endpoints from current ports/*/data.
@@ -75,11 +112,24 @@ get_diagnostics defaults to active events. Use filter {} for the full event cata
 includes never-occurred events; do not describe the catalog as a list of current failures.
 Read device://diagnostics/filter-schema before constructing complex device-side filters.`
 
-// New constructs a read-only server. Each tool/resource read has a total timeout.
-func New(host string, timeout time.Duration) *mcp.Server {
+// New constructs a server, read-only unless WithWrite is given. Each tool call
+// and resource read has a total timeout.
+func New(host string, timeout time.Duration, opts ...Option) *mcp.Server {
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
 	client := ovp8xx.NewClient(ovp8xx.WithHost(host), ovp8xx.WithTimeout(timeout))
+	instructions := "Start with get_device_overview. Prefer scoped config/schema reads and active diagnostics. Read device://knowledge/api and device://knowledge/diagnostics for interpretation. "
+	semantics := readOnlySemantics + commonSemantics
+	if o.write {
+		instructions += "Configuration writes are enabled: read device://knowledge/api before using set_config or save_init."
+		semantics = writeSemantics + commonSemantics
+	} else {
+		instructions += "No write operations are exposed."
+	}
 	server := mcp.NewServer(&mcp.Implementation{Name: "ovp8xx", Version: "1.0.0"}, &mcp.ServerOptions{
-		Instructions: "Start with get_device_overview. Prefer scoped config/schema reads and active diagnostics. Read device://knowledge/api and device://knowledge/diagnostics for interpretation. No write operations are exposed.",
+		Instructions: instructions,
 	})
 	addReadTool(server, "get_config", "Read live device configuration, preserving enclosing JSON hierarchy.", timeout,
 		func(ctx context.Context, in pathsInput) (any, error) {
@@ -138,6 +188,9 @@ func New(host string, timeout time.Duration) *mcp.Server {
 			result.Diagnostics = json.RawMessage(diag.String())
 			return result, nil
 		})
+	if o.write {
+		addWriteTools(server, client, timeout)
+	}
 	for _, entry := range []struct{ uri, name, text string }{
 		{"device://knowledge/api", "Device API semantics", semantics},
 		{"device://knowledge/diagnostics", "Diagnostic interpretation", diagnosticsGuide},
@@ -171,6 +224,88 @@ func addReadTool[In any](server *mcp.Server, name, description string, timeout t
 			}
 			return nil, out, nil
 		})
+}
+
+func addWriteTools(server *mcp.Server, client *ovp8xx.Client, timeout time.Duration) {
+	destructive := true
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "set_config",
+		Description: "Apply a configuration fragment (temporary until save_init) and return the values read back. Read get_schema first.",
+		Annotations: &mcp.ToolAnnotations{DestructiveHint: &destructive, IdempotentHint: true},
+	}, func(ctx context.Context, req *mcp.CallToolRequest, _ setConfigInput) (*mcp.CallToolResult, any, error) {
+		ctx, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
+		// Forward the fragment as received, decoding it into Go values would
+		// round large integers.
+		var raw struct {
+			Config json.RawMessage `json:"config"`
+		}
+		if err := json.Unmarshal(req.Params.Arguments, &raw); err != nil {
+			return nil, nil, fmt.Errorf("set_config: %w", err)
+		}
+		paths, err := leafPointers(raw.Config)
+		if err != nil {
+			return nil, nil, fmt.Errorf("set_config: %w", err)
+		}
+		if err := client.Set(ctx, *ovp8xx.NewConfig(ovp8xx.WithJSONString(string(raw.Config)))); err != nil {
+			return nil, nil, fmt.Errorf("set_config: %w", err)
+		}
+		conf, err := client.Get(ctx, paths)
+		readBack, err := decodeJSON(conf.String(), err)
+		if err != nil {
+			return nil, nil, fmt.Errorf("set_config: applied, but reading back failed: %w", err)
+		}
+		return nil, map[string]any{"applied": true, "persisted": false, "readBack": readBack}, nil
+	})
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "save_init",
+		Description: "Persist the current configuration of the given paths so it survives a reboot. Keep the scope narrow.",
+		Annotations: &mcp.ToolAnnotations{DestructiveHint: &destructive, IdempotentHint: true},
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in saveInitInput) (*mcp.CallToolResult, any, error) {
+		ctx, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
+		if len(in.Paths) == 0 {
+			return nil, nil, errors.New(`save_init: paths are required, use [""] to persist the complete configuration`)
+		}
+		if err := validatePaths(in.Paths); err != nil {
+			return nil, nil, fmt.Errorf("save_init: %w", err)
+		}
+		if err := client.SaveInit(ctx, in.Paths); err != nil {
+			return nil, nil, fmt.Errorf("save_init: %w", err)
+		}
+		return nil, map[string]any{"persisted": true, "paths": in.Paths}, nil
+	})
+}
+
+// leafPointers returns the sorted JSON pointers of all non-object values in
+// the configuration fragment, which has to be a non-empty JSON object.
+func leafPointers(fragment json.RawMessage) ([]string, error) {
+	dec := json.NewDecoder(bytes.NewReader(fragment))
+	dec.UseNumber()
+	var root any
+	if err := dec.Decode(&root); err != nil {
+		return nil, fmt.Errorf("invalid configuration fragment: %w", err)
+	}
+	obj, ok := root.(map[string]any)
+	if !ok || len(obj) == 0 {
+		return nil, errors.New("the configuration fragment must be a non-empty JSON object")
+	}
+	escape := strings.NewReplacer("~", "~0", "/", "~1")
+	var paths []string
+	var walk func(prefix string, value any)
+	walk = func(prefix string, value any) {
+		obj, ok := value.(map[string]any)
+		if !ok || len(obj) == 0 {
+			paths = append(paths, prefix)
+			return
+		}
+		for key, child := range obj {
+			walk(prefix+"/"+escape.Replace(key), child)
+		}
+	}
+	walk("", root)
+	sort.Strings(paths)
+	return paths, nil
 }
 
 func decodeJSON(data string, err error) (any, error) {
