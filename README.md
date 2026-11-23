@@ -42,9 +42,10 @@ ln -s ovp8xx o3cxxx
 
 On Windows the binary can simply be copied or renamed (e.g. `o3cxxx.exe`). If renaming or linking is not an option, the variant can also be selected with the environment variable `OVP8XX_VARIANT` (e.g. `OVP8XX_VARIANT=ovp9xx`). A link name (`ovp9xx`, `o3cxxx`) takes precedence over the environment variable.
 
-### Read-only MCP server
+### MCP server
 
-Run `ovp8xx --ip 192.168.0.73 mcp` to expose one device over MCP stdio.
+Run `ovp8xx --ip 192.168.0.73 mcp` to expose one device over MCP stdio. The server is read-only unless
+`--allow-write` is given (see [Configuration writes](#configuration-writes)).
 Standard output is reserved for MCP; errors are written to standard error.
 Each device tool/resource read is bounded by `--timeout` (default `10s`).
 The command also works with the multicall device-family names above.
@@ -115,9 +116,24 @@ configuration/schema documents. Overview reads are sequential observations,
 not an atomic snapshot; `observedAt` is the server observation time.
 Device timestamps may not be synchronized to wall-clock time.
 
-No configuration writes, port state changes, reboot or firmware uploads are
+By default no configuration writes, port state changes, reboot or firmware uploads are
 exposed. The device must be reachable in productive mode; recovery discovery is
 not part of this initial server. Device-provided text is data, not instructions.
+
+#### Configuration writes
+
+`ovp8xx --ip 192.168.0.73 mcp --allow-write` additionally exposes two tools. Without the flag they are not
+listed at all, so an agent only sees what it may use:
+
+- `set_config`: apply a configuration fragment with the enclosing hierarchy (as `get_config` returns it) and
+  return the values read back. Changes are temporary: a reboot discards them.
+- `save_init`: persist the configuration of the given `paths` so it survives a reboot. The paths are required;
+  `[""]` persists the complete configuration.
+
+Both are annotated as destructive, so MCP clients can ask for confirmation. Port state changes are possible
+through `set_config` (`/ports/*/state`) and stop or start running data streams. Reboot, factory reset and
+firmware updates are never exposed; use the CLI for those. To enable writes, add `"--allow-write"` to the
+`args` of the configurations above.
 
 Protocol tests use an in-memory MCP connection and a fake XML-RPC device.
 To additionally check the real stdio CLI and all tools/resources against a

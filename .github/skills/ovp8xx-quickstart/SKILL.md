@@ -51,7 +51,7 @@ start — restart the session after changing the configuration.
 ### 3. Verify the MCP tools
 
 Call `get_diagnostics` (no arguments) — it answers quickly and shows active
-incidents per port/app. All tools are read-only:
+incidents per port/app. By default all tools are read-only:
 
 | Tool | Purpose |
 |------|---------|
@@ -59,6 +59,12 @@ incidents per port/app. All tools are read-only:
 | `get_config` | Live configuration, scoped by JSON pointers (`paths`) |
 | `get_schema` | Live JSON Schema constraints, scoped by `paths` |
 | `get_diagnostics` | Active events by default; `{}` returns the full catalog |
+
+Configuration writes are opt-in: only if the user asks for it, add
+`"--allow-write"` to the server `args`. This adds `set_config` (temporary
+until reboot, returns the read-back values) and `save_init` (persist the given
+`paths`). Read `get_schema` before writing, keep `save_init` scoped, and ask
+the user before changing `/ports/*/state`.
 
 Resources: `device://knowledge/api`, `device://knowledge/diagnostics`,
 `device://diagnostics/filter-schema`. Prefer scoped reads over complete

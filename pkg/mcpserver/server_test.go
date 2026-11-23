@@ -217,3 +217,109 @@ func TestLiveStdio(t *testing.T) {
 		require.NoError(t, err, fmt.Sprintf("read %s", res.URI))
 	}
 }
+
+// xmlRPCCall is a decoded XML-RPC request of the fake device.
+type xmlRPCCall struct {
+	Method string `xml:"methodName"`
+	Body   string
+}
+
+// newWriteDevice starts a fake device which records all calls and answers
+// get requests with reply.
+func newWriteDevice(t *testing.T, reply string) (string, chan xmlRPCCall) {
+	t.Helper()
+	calls := make(chan xmlRPCCall, 20)
+	device := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		var c xmlRPCCall
+		if err := xml.Unmarshal(body, &c); err != nil {
+			t.Error(err)
+			return
+		}
+		c.Body = string(body)
+		calls <- c
+		w.Header().Set("Content-Type", "text/xml")
+		if c.Method != "get" {
+			_, _ = io.WriteString(w, `<methodResponse><params><param><value><string></string></value></param></params></methodResponse>`)
+			return
+		}
+		_, _ = io.WriteString(w, `<methodResponse><params><param><value><string>`)
+		_ = xml.EscapeText(w, []byte(reply))
+		_, _ = io.WriteString(w, `</string></value></param></params></methodResponse>`)
+	}))
+	t.Cleanup(device.Close)
+	return strings.TrimPrefix(device.URL, "http://"), calls
+}
+
+func TestWriteTools(t *testing.T) {
+	host, calls := newWriteDevice(t, `{"device":{"info":{"name":"front"}}}`)
+	cs, ctx := connect(t, New(host, time.Second, WithWrite()))
+
+	tools, err := cs.ListTools(ctx, nil)
+	require.NoError(t, err)
+	require.Len(t, tools.Tools, 6)
+	for _, tool := range tools.Tools {
+		switch tool.Name {
+		case "set_config", "save_init":
+			require.False(t, tool.Annotations.ReadOnlyHint)
+			require.NotNil(t, tool.Annotations.DestructiveHint)
+			require.True(t, *tool.Annotations.DestructiveHint)
+		default:
+			require.True(t, tool.Annotations.ReadOnlyHint, tool.Name)
+		}
+	}
+	api, err := cs.ReadResource(ctx, &mcp.ReadResourceParams{URI: "device://knowledge/api"})
+	require.NoError(t, err)
+	require.Contains(t, api.Contents[0].Text, "save_init")
+	require.NotContains(t, api.Contents[0].Text, "read-only")
+
+	// The fragment is forwarded unchanged, large integers must not be rounded
+	result := call(t, ctx, cs, "set_config", map[string]any{"config": json.RawMessage(
+		`{"device":{"info":{"name":"front","n":9007199254740993}},"ports":{"port0":{"a/b":{}}}}`)})
+	require.False(t, result.IsError, "%v", result.Content)
+	set := <-calls
+	require.Equal(t, "set", set.Method)
+	require.Contains(t, set.Body, "9007199254740993")
+	get := <-calls
+	require.Equal(t, "get", get.Method)
+	for _, path := range []string{"/device/info/n", "/device/info/name", "/ports/port0/a~1b"} {
+		require.Contains(t, get.Body, path)
+	}
+	text := result.Content[0].(*mcp.TextContent).Text
+	require.Contains(t, text, `"readBack"`)
+	require.Contains(t, text, `"persisted":false`)
+
+	result = call(t, ctx, cs, "save_init", map[string]any{"paths": []string{"/device/info"}})
+	require.False(t, result.IsError, "%v", result.Content)
+	save := <-calls
+	require.Equal(t, "saveInit", save.Method)
+	require.Contains(t, save.Body, "/device/info")
+
+	// Invalid input must not reach the device
+	for _, tc := range []struct {
+		name string
+		args any
+	}{
+		{"set_config", map[string]any{"config": map[string]any{}}},
+		{"save_init", map[string]any{"paths": []string{}}},
+		{"save_init", map[string]any{"paths": []string{"device"}}},
+	} {
+		res, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: tc.name, Arguments: tc.args})
+		require.True(t, err != nil || res.IsError, "%s %v", tc.name, tc.args)
+	}
+	require.Empty(t, calls)
+}
+
+func TestLeafPointers(t *testing.T) {
+	paths, err := leafPointers(json.RawMessage(`{"b":{"c":1,"d":[1,2]},"a~":"x","e":{}}`))
+	require.NoError(t, err)
+	require.Equal(t, []string{"/a~0", "/b/c", "/b/d", "/e"}, paths)
+	for _, bad := range []string{`[]`, `{}`, `1`, `{`} {
+		_, err := leafPointers(json.RawMessage(bad))
+		require.Error(t, err, bad)
+	}
+}
