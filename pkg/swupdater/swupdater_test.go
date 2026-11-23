@@ -2,6 +2,7 @@ package swupdater
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -205,6 +206,7 @@ func TestIsAvailableTimeout(t *testing.T) {
 		t.Fatalf("expected a timeout, got %v, %v", ok, err)
 	}
 }
+
 // newFakeDeviceInfoBody starts a fake SWUpdate service which answers the
 // device information requests with the given status and body.
 func newFakeDeviceInfoBody(t *testing.T, status int, body string) *SWUpdater {
@@ -266,5 +268,21 @@ func TestDeviceInfoErrors(t *testing.T) {
 				t.Errorf("expected an error, got %q", info)
 			}
 		})
+	}
+}
+
+func TestRestartNotReachable(t *testing.T) {
+	// Reserve a port and release it again, so nothing listens on it
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	h, p, _ := net.SplitHostPort(l.Addr().String())
+	_ = l.Close()
+	pn, _ := strconv.Atoi(p)
+
+	err = NewSWUpdater(h, uint16(pn), nil).Restart(0)
+	if !errors.Is(err, ErrNotReachable) {
+		t.Fatalf("expected ErrNotReachable, got %v", err)
 	}
 }

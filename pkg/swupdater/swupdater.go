@@ -61,6 +61,11 @@ func serviceURL(scheme, host string, port uint16, path string) string {
 // answer is not sufficient, the service may still be restarted while booting.
 const requiredAvailabilityChecks = 3
 
+// ErrNotReachable is returned when the SWUpdate service cannot be reached
+// within the connection timeout, e.g. because the device is not in the
+// SWUpdate mode or is rebooting.
+var ErrNotReachable = errors.New("the SWUpdate service is not reachable")
+
 // availabilityRequestTimeout limits a single availability check, so a
 // device which accepts the connection but does not answer is polled again.
 const availabilityRequestTimeout = 3 * time.Second
@@ -152,6 +157,7 @@ func (s *SWUpdater) DeviceInfo(ctx context.Context) (json.RawMessage, error) {
 	_, _ = io.Copy(io.Discard, limited)
 	return info, nil
 }
+
 // Upload performs the upload of the specified file.
 // The filename parameter specifies the name of the file to be uploaded.
 // Returns an error if the upload fails.
@@ -335,7 +341,7 @@ func (s *SWUpdater) waitForOnline(connectionTimeout time.Duration) (bool, error)
 			break
 		}
 		if time.Since(start) > connectionTimeout {
-			return false, fmt.Errorf("connection timeout: %w", err)
+			return false, fmt.Errorf("%w (connection timeout): %w", ErrNotReachable, err)
 		}
 		// Retry after 3 seconds
 		time.Sleep(3 * time.Second)
