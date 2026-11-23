@@ -287,27 +287,27 @@ Query the configuration, optionally limited by JSON pointers and pretty printed.
 
 ```sh
 ovp8xx get --pretty
-ovp8xx get -p /device/swVersion -p /ports/port0
+ovp8xx get /device/swVersion /ports/port0     # or: get -p /device/swVersion -p /ports/port0
 ```
 
 Write a configuration back to the device, either as an argument or via stdin:
 
 ```sh
 ovp8xx set '{"device":{"info":{"name":"my-device"}}}'
-ovp8xx get -p /device/info | ovp8xx set
+ovp8xx get /device/info | ovp8xx set
 ```
 
 Persist the current configuration as the init configuration and read it back:
 
 ```sh
-ovp8xx saveInit -p /device/info
+ovp8xx saveInit /device/info
 ovp8xx getInit --pretty
 ```
 
 Further commands:
 
 ```sh
-ovp8xx getSchema -p /device --pretty        # JSON schema of the configuration
+ovp8xx getSchema /device --pretty           # JSON schema of the configuration
 ovp8xx diagnostic getFiltered               # active diagnostic events
 ovp8xx pcic --port 50010                    # receive PCIC result data
 ovp8xx reboot                               # reboot the device

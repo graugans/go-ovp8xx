@@ -45,6 +45,25 @@ func (c *helperConfig) prettyPrint() bool {
 	return c.pretty
 }
 
+// pointerFlagUsage is the usage text of the --pointer flag.
+const pointerFlagUsage = "A JSON pointer to be queried, can be repeated; the same as passing it as an argument"
+
+// addPointerFlag adds the --pointer/-p flag to cmd.
+func addPointerFlag(cmd *cobra.Command, usage string) {
+	cmd.Flags().StringSliceP("pointer", "p", nil, usage)
+}
+
+// jsonPointers returns the JSON pointers given by --pointer/-p followed by the
+// ones given as arguments. Both forms can be mixed. The result is never nil,
+// an empty list queries the complete document.
+func jsonPointers(cmd *cobra.Command, args []string) ([]string, error) {
+	pointers, err := cmd.Flags().GetStringSlice("pointer")
+	if err != nil {
+		return nil, fmt.Errorf("cannot get the JSON pointers: %w", err)
+	}
+	return append(append([]string{}, pointers...), args...), nil
+}
+
 func NewHelper(cmd *cobra.Command) (helperConfig, error) {
 	var conf = helperConfig{}
 	var err error

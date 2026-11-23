@@ -50,7 +50,11 @@ func getCommand(cmd *cobra.Command, args []string) error {
 		ovp8xx.WithHost(helper.hostname()),
 	)
 
-	if result, err = o3r.Get(cmd.Context(), args); err != nil {
+	pointers, err := jsonPointers(cmd, args)
+	if err != nil {
+		return err
+	}
+	if result, err = o3r.Get(cmd.Context(), pointers); err != nil {
 		return err
 	}
 
@@ -93,6 +97,11 @@ var getCmd = &cobra.Command{
 	Use:   "get [pointers...]",
 	Short: "Retrieve the JSON configuration from the device",
 	Long: `The device get call accepts a list of JSON pointer like queries.
+They can be given as arguments or with --pointer/-p, both forms can be mixed:
+
+  ovp8xx get /device/swVersion /ports/port0
+  ovp8xx get -p /device/swVersion -p /ports/port0
+
 Valid queries are for example:
 
 - The empty string "" which queries the complete configuration
@@ -123,7 +132,7 @@ NOTE: This command only modifies temporary data, any changes will be lost after 
 
 func init() {
 	rootCmd.AddCommand(getCmd)
-	getCmd.Flags().StringSliceP("pointer", "p", []string{""}, "A JSON pointer to be queried")
+	addPointerFlag(getCmd, pointerFlagUsage)
 	getCmd.Flags().Bool("pretty", false, "Pretty print the JSON received from the device")
 	getCmd.Flags().String("format", "", "Specify an alternative format for the JSON output")
 }

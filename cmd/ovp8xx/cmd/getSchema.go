@@ -19,7 +19,11 @@ func getSchemaCommand(cmd *cobra.Command, args []string) error {
 		ovp8xx.WithHost(helper.hostname()),
 	)
 
-	if result, err = o3r.GetSchema(cmd.Context(), args); err != nil {
+	pointers, err := jsonPointers(cmd, args)
+	if err != nil {
+		return err
+	}
+	if result, err = o3r.GetSchema(cmd.Context(), pointers); err != nil {
 		return err
 	}
 
@@ -76,13 +80,14 @@ The pointer '/device/swVersion/diagnostics' for example provides this informatio
 	"type": "object"
   }
 
-When no query is provided the complete schema is returned.
+When no query is provided the complete schema is returned. The pointers can be given
+as arguments or with --pointer/-p, both forms can be mixed.
 `,
 	RunE: getSchemaCommand,
 }
 
 func init() {
 	rootCmd.AddCommand(getSchemaCmd)
-	getSchemaCmd.Flags().StringSliceP("pointer", "p", []string{""}, "A JSON pointer to be queried. This can be used multiple times")
+	addPointerFlag(getSchemaCmd, pointerFlagUsage)
 	getSchemaCmd.Flags().Bool("pretty", false, "Pretty print the JSON received from the device")
 }
