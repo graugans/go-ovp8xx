@@ -329,6 +329,13 @@ Update the firmware, the device has to be rebooted into the SWUpdate mode first:
 ovp8xx reboot --swupdate
 ovp8xx WaitForOnline --mode swupdate
 ovp8xx swupdate firmware.swu
+ovp8xx WaitForOnline --mode productive
+```
+
+After a successful installation the device reboots into the productive system on its own. `swupdate restart` is
+only needed to leave the SWUpdate mode without an update:
+
+```sh
 ovp8xx swupdate restart                     # reboot back into productive mode
 ```
 

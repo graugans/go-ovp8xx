@@ -82,6 +82,8 @@ func swupdateCommand(cmd *cobra.Command, args []string) error {
 	}
 
 	wg.Wait() // Wait for all goroutines to finish
+	fmt.Println("Update installed, the device is rebooting into the productive system.")
+	fmt.Println("Use \"WaitForOnline --mode productive\" to wait until it is available.")
 	return nil
 }
 
@@ -93,7 +95,13 @@ var swupdateCmd = &cobra.Command{
 
 It takes a filename as a positional argument, which is the path to the firmware file to be uploaded.
 
-The command establishes a connection to the device, uploads the firmware file, and waits for the update process to complete.`,
+The command establishes a connection to the device, uploads the firmware file, and waits for the update process to complete.
+
+After a successful installation the recovery system reboots the device into the
+productive system on its own. A following "swupdate restart" is not needed and
+fails, because the device is already rebooting. To wait for the productive system:
+
+  ovp8xx swupdate firmware.swu && ovp8xx WaitForOnline --mode productive`,
 	RunE: swupdateCommand,
 }
 
@@ -111,6 +119,9 @@ or restart the SWUpdater service again.
 
 In case a previous update was initiated but not successful the device will restart
 the SWUpdater service again.
+
+It is not needed after a successful "swupdate", the device then already reboots
+into the productive system on its own.
 `,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Retrieve host and port from the parent command's flags
